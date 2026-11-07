@@ -6,7 +6,7 @@ import { loadMarketList } from "@/lib/team/market-data";
 import { marketLines, marketOpensText, sign } from "@/lib/team/market";
 import { bp, money } from "@/lib/format";
 import { Badge, Notice, Panel, Table, Td } from "@/components/ui/ui";
-import { Sparkline } from "@/components/ui/line-chart";
+import { MiniCandles } from "@/components/ui/candle-chart";
 import { MarketTabs } from "./tabs";
 import { MarketMonitor } from "./monitor";
 
@@ -83,7 +83,7 @@ export default async function MarketPage() {
                   )}
                 </Td>
                 <Td>
-                  <Sparkline values={l.trend} label={`${l.ticker} price trend`} />
+                  <MiniCandles values={l.trend} label={`${l.ticker} price by step`} />
                 </Td>
               </tr>
             );

@@ -261,6 +261,7 @@ body {
   --chart-marker: #56616c;
   --chart-marker-text: #ffa028;
   --chart-second: #4fd1ff;
+  --chart-volume: #56616c;
 
   background: var(--term-bg);
   color: var(--color-slate-800);
@@ -313,12 +314,21 @@ body {
   --chart-marker: #56616c;
   --chart-marker-text: #ffa028;
   --chart-second: #4fd1ff;
+  --chart-volume: #56616c;
 }
 
 /* The latest point of a live chart: a ring that grows and fades, so a screen shows it is following the market. */
 @keyframes msim-live-ping {
   from { opacity: 0.7; transform: scale(1); }
   to { opacity: 0; transform: scale(3); }
+}
+/* The latest candle of a live chart: a frame that fades in and out. */
+@keyframes msim-live-candle {
+  50% { opacity: 0.15; }
+}
+.msim-live-candle { animation: msim-live-candle 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .msim-live-candle { animation: none; }
 }
 .msim-live-ping {
   transform-box: fill-box;

@@ -52,8 +52,8 @@ export async function loadMarketList(eventId: string): Promise<MarketList> {
       .limit(1)
       .maybeSingle<{ id: string; number: number }>()
       .then((r) => must(r, "the rounds")),
-    fetchAll<{ company_id: string; kind: string; market_after: number }>((from, to) =>
-      sb.from("round_prices").select("company_id, kind, market_after").eq("event_id", eventId).order("id").range(from, to),
+    fetchAll<{ company_id: string; kind: string; market_after: number; buy_qty: number; sell_qty: number }>((from, to) =>
+      sb.from("round_prices").select("company_id, kind, market_after, buy_qty, sell_qty").eq("event_id", eventId).order("id").range(from, to),
     ),
   ]);
   const trends: Record<string, number[]> = {};

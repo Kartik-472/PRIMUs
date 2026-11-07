@@ -1,11 +1,11 @@
-// The chart page of the price board: the PRIMUS index after every step, large enough to read from the back of the
-// hall, and the companies that moved most since their starting price with their trend lines. It takes its turn in the
+// The chart page of the price board: the PRIMUS index as candles, one per step, large enough to read from the back of the
+// hall, and the companies that moved most since their starting price with small candles of their steps. It takes its turn in the
 // board's rotation; the page re-reads itself at every clearing, so the chart gains a point as soon as a round clears.
 
-import { INDEX_BASE, indexChartPoints, indexText, type IndexPoint } from "@/lib/chart";
+import { INDEX_BASE, indexCandles, indexText, type IndexPoint } from "@/lib/chart";
 import { bp, money } from "@/lib/format";
 import type { BoardTile } from "@/lib/display/board";
-import { LineChart, Sparkline } from "@/components/ui/line-chart";
+import { CandleChart, MiniCandles } from "@/components/ui/candle-chart";
 
 const MOVERS = 4;
 const BOX = { width: 1180, height: 640, padLeft: 150, padRight: 40, padTop: 56, padBottom: 24 };
@@ -39,10 +39,9 @@ export function ChartPage({ index, tiles, trends }: { index: IndexPoint[]; tiles
         </h2>
         <div className="min-h-0 flex-1">
           {index.length > 1 ? (
-            <LineChart
-              points={indexChartPoints(index)}
+            <CandleChart
+              candles={indexCandles(index)}
               label="PRIMUS index by step"
-              mainName="Index"
               format={(v) => indexText(v)}
               box={BOX}
               fontSize={26}
@@ -74,7 +73,7 @@ function Movers({ title, rows, trends }: { title: string; rows: (BoardTile & { c
           {rows.map((t) => (
             <li key={t.id} className="flex items-center gap-4 border-b border-white/10 py-2" data-testid={`display-mover-${t.ticker}`}>
               <span className="w-[120px] shrink-0 text-[38px] font-black text-[var(--term-amber)]">{t.ticker}</span>
-              <Sparkline values={trends[t.id] ?? []} label={`${t.ticker} price trend`} width={150} height={40} strokeWidth={3} />
+              <MiniCandles values={trends[t.id] ?? []} label={`${t.ticker} price by step`} width={150} height={40} />
               <span className="ml-auto text-[30px] font-bold tabular-nums">{money(t.price)}</span>
               <span className={`w-[150px] text-right text-[30px] font-bold tabular-nums ${t.changeBp > 0 ? "text-[var(--term-green)]" : "text-[var(--term-red)]"}`}>
                 {bp(t.changeBp)}

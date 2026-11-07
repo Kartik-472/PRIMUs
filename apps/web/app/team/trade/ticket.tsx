@@ -149,7 +149,20 @@ export function OrderTicket({
         <label htmlFor="order-qty" className="text-xs font-medium text-slate-600">
           Quantity (shares)
         </label>
-        <div className="mt-0.5 flex gap-2">
+        <div className="mt-0.5 flex gap-1">
+          {/* Steps of 100 shares down and up, beside the box (the box still takes any whole number). */}
+          <button
+            type="button"
+            aria-label={`${QTY_STEP} fewer shares`}
+            className="shrink-0 rounded-md bg-slate-100 px-3 font-mono text-lg font-bold text-slate-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-200 disabled:opacity-40"
+            disabled={(parseShares(qty) ?? 0) <= 0}
+            onClick={() => {
+              setQty(String(Math.max(0, (parseShares(qty) ?? 0) - QTY_STEP)));
+              setMaxNote(null);
+            }}
+          >
+            −
+          </button>
           <input
             id="order-qty"
             name="qty"
@@ -161,8 +174,19 @@ export function OrderTicket({
               setQty(e.target.value);
               setMaxNote(null);
             }}
-            className={`${inputClass} font-mono`}
+            className={`${inputClass} text-center font-mono`}
           />
+          <button
+            type="button"
+            aria-label={`${QTY_STEP} more shares`}
+            className="shrink-0 rounded-md bg-slate-100 px-3 font-mono text-lg font-bold text-slate-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-200"
+            onClick={() => {
+              setQty(String((parseShares(qty) ?? 0) + QTY_STEP));
+              setMaxNote(null);
+            }}
+          >
+            +
+          </button>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Quick amounts">
           {QUICK_QUANTITIES.map((n) => (
@@ -225,6 +249,9 @@ export function OrderTicket({
     </form>
   );
 }
+
+/** The − and + buttons beside the quantity move it by this many shares. */
+const QTY_STEP = 100;
 
 /** Each order type's colour when chosen: buying green, selling red. */
 const TYPE_ON: Record<OrderType, string> = {

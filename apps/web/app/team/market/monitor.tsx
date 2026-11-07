@@ -1,14 +1,14 @@
-// The market monitor at the top of the Market page: the equal-weight market index after every step, drawn live (the
+// The market monitor at the top of the Market page: the equal-weight market index as candles, one per step, drawn live (the
 // page re-reads itself at every clearing, so the chart gains a point the moment a round clears), and the companies
-// that moved most since their starting price, each with its trend line.
+// that moved most since their starting price, each with small candles of its steps.
 
 import Link from "next/link";
 import type { EventStatus } from "@/lib/event-status";
-import { INDEX_BASE, indexChartPoints, indexText, type IndexPoint } from "@/lib/chart";
+import { INDEX_BASE, indexCandles, indexText, type IndexPoint } from "@/lib/chart";
 import type { MarketLine } from "@/lib/team/market";
 import { bp, money } from "@/lib/format";
 import { changeSinceStartBp } from "@/lib/display/board";
-import { LineChart, Sparkline } from "@/components/ui/line-chart";
+import { CandleChart, MiniCandles } from "@/components/ui/candle-chart";
 import { Countdown } from "@/components/ui/countdown";
 import { Panel } from "@/components/ui/ui";
 
@@ -54,10 +54,9 @@ export function MarketMonitor({ index, lines, status }: { index: IndexPoint[]; l
             ) : null}
           </p>
           {index.length > 1 ? (
-            <LineChart
-              points={indexChartPoints(index)}
+            <CandleChart
+              candles={indexCandles(index)}
               label="PRIMUS index by step"
-              mainName="Index (every company 1,000 at its starting price)"
               format={(v) => indexText(v)}
               live
               testId="index-chart"
@@ -88,7 +87,7 @@ function MoverList({ title, rows }: { title: string; rows: (MarketLine & { since
               <Link href={`/team/market/${l.ticker}`} className="w-14 shrink-0 font-mono font-bold text-slate-900 underline-offset-2 hover:underline">
                 {l.ticker}
               </Link>
-              <Sparkline values={l.trend} label={`${l.ticker} price trend`} width={96} height={24} />
+              <MiniCandles values={l.trend} label={`${l.ticker} price by step`} width={96} height={24} />
               <span className="ml-auto font-mono tabular-nums">{money(l.closing ?? l.price)}</span>
               <span className={`w-20 text-right font-mono tabular-nums ${l.sinceStart > 0 ? "text-emerald-700" : "text-red-700"}`}>{bp(l.sinceStart)}</span>
             </li>

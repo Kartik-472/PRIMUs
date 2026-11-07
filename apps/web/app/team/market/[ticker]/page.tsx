@@ -3,8 +3,8 @@ import Link from "next/link";
 import { phaseReached, type SubmissionType } from "@msim/engine";
 import { loadTeamContext } from "@/lib/team/context";
 import { loadCompanyView, type PublicSubmission } from "@/lib/team/market-data";
-import { PUBLIC_FROM, SUBMISSION_TITLES, chartPoints, historyLines, marketOpensText } from "@/lib/team/market";
-import { LineChart } from "@/components/ui/line-chart";
+import { PUBLIC_FROM, SUBMISSION_TITLES, candlePoints, historyLines, marketOpensText } from "@/lib/team/market";
+import { CandleChart } from "@/components/ui/candle-chart";
 import { clock, money } from "@/lib/format";
 import { Badge, Notice, Panel, Stat, Table, Td } from "@/components/ui/ui";
 import { ScoreCard } from "../../score-card";
@@ -66,7 +66,7 @@ export default async function CompanyPage({ params }: PageProps<"/team/market/[t
           {c.closing_price !== null ? <Stat label="Closing price" value={money(c.closing_price)} hint="½ market + ½ score-based" /> : <Stat label="Closing price" value="—" hint="at the closing bell" />}
         </div>
         <div className="mt-4">
-          <LineChart points={chartPoints(lines)} label={`${c.ticker} price by step`} mainName="Market price" secondName="Score-based price" testId="price-chart" />
+          <CandleChart candles={candlePoints(lines, history)} label={`${c.ticker} price by step`} secondName="Score-based price" live testId="price-chart" />
         </div>
       </Panel>
 

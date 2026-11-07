@@ -7,7 +7,7 @@
 import { useSyncExternalStore, type ReactNode } from "react";
 import { useServerNow } from "@/lib/live/clock";
 import { bp, money } from "@/lib/format";
-import { Sparkline } from "@/components/ui/line-chart";
+import { MiniCandles } from "@/components/ui/candle-chart";
 import {
   MOVE_ARROWS,
   MOVE_TONE,
@@ -158,8 +158,8 @@ function Tile({ tile: t, trend, round, glow, size }: { tile: BoardTile; trend: n
         <p className={`min-w-0 flex-1 truncate text-slate-400 uppercase ${size.name}`} data-testid="tile-name">
           {t.name}
         </p>
-        {/* The price after every step so far: the tile's own live chart, redrawn at every clearing. */}
-        {trend.length > 1 ? <Sparkline values={trend} label={`${t.ticker} price trend`} width={size.spark.width} height={size.spark.height} strokeWidth={2.5} /> : null}
+        {/* A candle for every step so far: the tile's own live chart, redrawn at every clearing. */}
+        {trend.length > 1 ? <MiniCandles values={trend} label={`${t.ticker} price by step`} width={size.spark.width} height={size.spark.height} /> : null}
         {t.closing ? (
           <span className="shrink-0 text-[24px] font-bold tracking-wide text-amber-300 uppercase" data-testid="tile-closing">
             Close

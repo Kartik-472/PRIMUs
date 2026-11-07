@@ -37,8 +37,8 @@ export async function loadBoard(eventId: string): Promise<BoardData> {
       .order("number", { ascending: false })
       .limit(1)
       .maybeSingle<BoardRound>(),
-    fetchAll<{ company_id: string; kind: string; market_after: number }>((from, to) =>
-      sb.from("round_prices").select("company_id, kind, market_after").eq("event_id", eventId).order("id").range(from, to),
+    fetchAll<{ company_id: string; kind: string; market_after: number; buy_qty: number; sell_qty: number }>((from, to) =>
+      sb.from("round_prices").select("company_id, kind, market_after, buy_qty, sell_qty").eq("event_id", eventId).order("id").range(from, to),
     ),
   ]);
   for (const r of [companies, round]) if (r.error) throw new Error(`Could not read the board: ${r.error.message}`);

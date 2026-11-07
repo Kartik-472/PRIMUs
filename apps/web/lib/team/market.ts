@@ -4,7 +4,7 @@
 // crisis solution from 02:15, its scores once revealed). Pure. Prices are integer cents; changes are computed exactly
 // (basis points, rounded half-up) and never through floating point.
 
-import type { ChartPoint } from "@/lib/chart";
+import type { Candle, ChartPoint } from "@/lib/chart";
 import { TEMPLATES, divRoundHalfUp, phaseReached, trimAscii, type PhaseCode, type SubmissionType } from "@msim/engine";
 import { bp, count, money, signedCount } from "@/lib/format";
 
@@ -157,6 +157,22 @@ export function chartPoints(lines: readonly HistoryLine[]): ChartPoint[] {
     if (l.scorePrice !== null) second = l.scorePrice;
     return { label: l.label, value: l.price, second, marker: MARKERS[l.kind] ?? null };
   });
+}
+
+/**
+ * The company's history as candles: each step from the price before it to the price after it, with the shares traded
+ * at a clearing as its volume and the score-based price as the dashed line (carried forward, as in chartPoints).
+ */
+export function candlePoints(lines: readonly HistoryLine[], rows: readonly PriceRow[]): Candle[] {
+  const qty = new Map(rows.map((r) => [String(r.id), Number(r.buy_qty) + Number(r.sell_qty)]));
+  return chartPoints(lines).map((p, i) => ({
+    label: p.label,
+    open: i === 0 ? p.value : lines[i - 1]!.price,
+    close: p.value,
+    second: p.second ?? null,
+    marker: p.marker ?? null,
+    volume: lines[i]!.kind === "CLEARING" ? (qty.get(lines[i]!.key) ?? null) : null,
+  }));
 }
 
 // ───────────────────────────── What is public ─────────────────────────────
