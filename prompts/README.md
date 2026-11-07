@@ -7,7 +7,7 @@ judging works" page, so every team can read how its PRD and its crisis solution 
 | --- | --- |
 | `PRD.md` | The system prompt for judging a PRD (Round 1, at most 800 words). Its score sets the starting share price. |
 | `SOLUTION.md` | The system prompt for judging a crisis solution (Round 2, at most 500 words). Its score moves the rescued company's price at 02:45. |
-| `calibration/samples.json` | Sample PRDs and crisis solutions, from weak to strong, with the score range each should get. Organisers judge them before the event. |
+| `calibration/samples.json` | Sample PRDs and crisis solutions, from weak to strong, with the score range each should get. Organisers judge them before the event, on the Judge page or with `pnpm calibrate` (docs/JUDGE.md). |
 
 ## How the judge uses them
 

@@ -74,6 +74,40 @@ solutions, each with its context and the range it should score in) as a new batc
 readings of each, with each round's current model. The page shows each sample's readings, median, spread and
 whether it landed in range. Calibration never touches the night's scores. The fake judge's scores mean nothing.
 
+### Before the night: `pnpm calibrate` (an evaluation of the judge)
+
+The same check without the database, from a laptop with only `ANTHROPIC_API_KEY`, treated like a model evaluation:
+
+```
+pnpm calibrate                       # both rounds, primary models, 3 readings per sample
+pnpm calibrate --type PRD --slot BACKUP
+pnpm calibrate --human panel.csv     # also compare with a human panel (CSV: sample,judge,total)
+```
+
+Every sample is judged exactly as on the night (same prompt file, same request wrapper, lines aimed at the judge
+removed, three readings, median). For each round it reports, and checks against targets
+(`scripts/lib/calibrate.ts` `TARGETS`):
+
+| Check | Target |
+| --- | --- |
+| Medians inside their expected band | at least 80% of samples |
+| Worst miss outside a band | at most 10 points |
+| Spread between the three readings | at most 10 points for every sample |
+| Rank order (Spearman: expected band vs median) | at least 0.85: weak work must score below strong work |
+| With `--human`: mean gap to the panel's median | at most 10 points |
+
+It prints READY or NOT READY per round, exits 1 when a target is missed, and saves a JSON (with the prompt SHA-256s)
+and a CSV under `reports/calibration/`. Run it after every prompt change; if a round is NOT READY, change the
+prompt's anchors (not the samples' bands) and run again. The samples' bands are an organiser's judgement: before
+relying on them, have two or three people score the samples blind and use `--human`.
+
+The 21 samples cover very weak to excellent work and the traps a judge must not fall for: a long padded PRD
+(length earns nothing), a strong problem with no maths, a good PRD that ignores the twist, a polished PRD for a
+different problem card, confident maths that does not add up, a good PRD on a second card (clinic queues), and for
+crisis solutions one that answers a different problem, one that contradicts the rescued PRD, options with no numbers,
+a wishful two-day recovery and a padded one. One sample per round carries a line aimed at the judge, which is removed
+before judging, so it must score like its clean twin.
+
 ## Human-panel fallback
 
 If the AI service is down, three human judges score each submission on paper against the published rubric and the

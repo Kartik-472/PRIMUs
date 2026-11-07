@@ -16,6 +16,7 @@
     "certificates": "tsx --env-file-if-exists=.env scripts/certificates.ts",
     "verify-lottery": "tsx scripts/verify-lottery.ts",
     "judge-worker": "tsx --env-file-if-exists=.env scripts/judge-worker.ts",
+    "calibrate": "tsx --env-file-if-exists=.env scripts/calibrate.ts",
     "human-scores": "tsx --env-file-if-exists=.env scripts/human-scores.ts",
     "new-seed": "tsx scripts/new-seed.ts",
     "rehearse": "tsx --env-file-if-exists=.env scripts/rehearse.ts",
