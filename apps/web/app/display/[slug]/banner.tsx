@@ -18,7 +18,7 @@ const KIND: Record<string, string> = {
 export function BulletinBanner({ bulletin }: { bulletin: DisplayBulletin | null }) {
   if (!bulletin) return null;
   return (
-    <div className="flex max-h-[200px] min-h-[110px] shrink-0 items-center gap-6 border-b-4 border-white/20 bg-white/5 px-12 py-3" data-testid="display-bulletin">
+    <div className="flex max-h-[200px] min-h-[110px] shrink-0 items-center gap-6 border-b-2 border-[var(--term-amber-dim)] bg-[#0a0d10] px-12 py-3" data-testid="display-bulletin">
       <span className={`shrink-0 rounded-lg px-4 py-1 text-[26px] font-black tracking-wide ${KIND[bulletin.kind] ?? KIND.GENERAL}`}>{BULLETIN_KIND_LABELS[bulletin.kind as BulletinKind] ?? bulletin.kind}</span>
       <span className="shrink-0 font-mono text-[30px] text-slate-300 tabular-nums">{clock(bulletin.published_at)}</span>
       <div className="min-w-0">

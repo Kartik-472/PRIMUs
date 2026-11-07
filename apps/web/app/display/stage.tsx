@@ -24,7 +24,7 @@ export function Stage({ children }: { children: ReactNode }) {
     <div className="fixed inset-0 overflow-hidden bg-black">
       <div
         data-testid="stage"
-        className="absolute flex flex-col overflow-hidden bg-black text-white antialiased"
+        className="term-stage absolute flex flex-col overflow-hidden bg-black text-white antialiased"
         style={{
           width: STAGE_W,
           height: STAGE_H,

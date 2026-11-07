@@ -10,8 +10,8 @@ export function LeaderboardPage({ rows }: { rows: LiveRow[] }) {
   const columns = [0, 1, 2].map((i) => top.slice(i * PER_COLUMN, (i + 1) * PER_COLUMN)).filter((c) => c.length > 0);
   return (
     <section className="flex h-full flex-col" aria-label="Leaderboard" data-testid="display-leaderboard">
-      <h2 className="shrink-0 text-[48px] leading-tight font-black">
-        Leaderboard <span className="text-[30px] font-semibold text-slate-400">· top {top.length} of {rows.length} teams · live until 03:30</span>
+      <h2 className="shrink-0 text-[44px] leading-tight font-black text-[var(--term-amber)] uppercase">
+        Leaderboard <span className="text-[26px] font-semibold text-slate-400 normal-case">· top {top.length} of {rows.length} teams · live until 03:30</span>
       </h2>
       {top.length === 0 ? (
         <p className="mt-6 text-[36px] text-slate-300">No points yet: Round 1 points appear at 23:30.</p>
@@ -30,15 +30,15 @@ export function LeaderboardPage({ rows }: { rows: LiveRow[] }) {
               {col.map((r) => (
                 <li
                   key={r.team_id}
-                  className="grid grid-cols-[4rem_minmax(0,1fr)_4.5rem_4.5rem_4.5rem_6rem] items-baseline gap-2 rounded-lg bg-white/[0.06] px-3 py-1 tabular-nums"
+                  className="grid grid-cols-[4rem_minmax(0,1fr)_4.5rem_4.5rem_4.5rem_6rem] items-baseline gap-2 border-b border-white/10 bg-[#0a0d10] px-3 py-1 tabular-nums"
                   data-testid={`display-leaderboard-${r.code}`}
                 >
                   <span className="text-[32px] font-black text-slate-400">{r.rank}</span>
-                  <span className="font-mono text-[34px] font-black">{r.code}</span>
+                  <span className="font-mono text-[34px] font-black text-[var(--term-amber)]">{r.code}</span>
                   <span className="text-right text-[28px] text-slate-300">{r.r1}</span>
                   <span className="text-right text-[28px] text-slate-300">{r.r2}</span>
                   <span className="text-right text-[28px] text-slate-300">{r.r3}</span>
-                  <span className="text-right text-[34px] font-black text-amber-300">{r.total}</span>
+                  <span className="text-right text-[34px] font-black text-[var(--term-green)]">{r.total}</span>
                 </li>
               ))}
             </ol>

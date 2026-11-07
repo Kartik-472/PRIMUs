@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const tab = (active: boolean) =>
   `whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ${
-    active ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
+    active ? "bg-slate-900 text-black" : "bg-white text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
   }`;
 
 /** The market's views: the prices, and the crisis solutions once they are public (02:15). */

@@ -20,8 +20,8 @@ export function TeamNav({ phase }: { phase: PhaseCode }) {
     if (t.left < r.left || t.right > r.right) row.scrollLeft += t.left - r.left - (r.width - t.width) / 2;
   }, [pathname]);
   return (
-    <nav ref={nav} className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4" aria-label="Sections">
-      {TEAM_SECTIONS.map((s) => {
+    <nav ref={nav} className="flex gap-px overflow-x-auto border-t border-slate-200 bg-slate-200" aria-label="Sections">
+      {TEAM_SECTIONS.map((s, i) => {
         const href = `/team${s.path}`;
         const active = s.path === "" ? pathname === "/team" : pathname.startsWith(href);
         const live = sectionLive(s, phase);
@@ -30,10 +30,14 @@ export function TeamNav({ phase }: { phase: PhaseCode }) {
             key={s.path}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${
-              active ? "border-slate-900 text-slate-900" : live ? "border-transparent text-slate-600 hover:text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
+            className={`flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 text-xs font-semibold tracking-wide uppercase ${
+              active ? "bg-[var(--term-amber)] text-black" : live ? "bg-black text-slate-700 hover:bg-slate-100 hover:text-[var(--term-amber)]" : "bg-black text-slate-400 hover:text-slate-600"
             }`}
           >
+            {/* A key number, like the function keys of a trading terminal. */}
+            <span className={`px-1 text-[10px] ${active ? "bg-black text-[var(--term-amber)]" : "bg-slate-200 text-slate-600"}`} aria-hidden>
+              F{i + 1}
+            </span>
             {s.label}
           </Link>
         );

@@ -67,7 +67,7 @@ async function Evening({ event, status }: { event: DisplayEvent; status: EventSt
             <p className="text-[56px] leading-tight font-bold text-slate-300" data-testid="evening-next">
               {next.label}
             </p>
-            <p className="font-mono text-[220px] leading-none font-black tabular-nums" data-testid="evening-countdown">
+            <p className="font-mono text-[220px] leading-none font-black text-[var(--term-amber)] tabular-nums" data-testid="evening-countdown">
               {status.paused ? <span className="text-amber-300">paused</span> : <Countdown to={next.at} passed="now" />}
             </p>
             <p className="mt-4 text-[44px] text-slate-300">
@@ -94,11 +94,11 @@ async function Evening({ event, status }: { event: DisplayEvent; status: EventSt
         ) : null}
       </div>
       <ol className="flex w-[640px] shrink-0 flex-col justify-center gap-4" aria-label="Tonight" data-testid="evening-schedule">
-        <li className="text-[32px] font-bold tracking-wide text-slate-400 uppercase">Tonight</li>
+        <li className="border-b-2 border-[var(--term-amber-dim)] pb-2 text-[32px] font-bold tracking-wide text-[var(--term-amber)] uppercase">Tonight</li>
         {moments.map((m) => {
           const past = Date.parse(m.at) <= nowMs;
           return (
-            <li key={m.key} className={`flex items-baseline justify-between gap-6 text-[38px] ${past ? "text-slate-500 line-through" : m.key === next?.key ? "font-black text-white" : "text-slate-200"}`}>
+            <li key={m.key} className={`flex items-baseline justify-between gap-6 text-[38px] ${past ? "text-slate-500 line-through" : m.key === next?.key ? "font-black text-[var(--term-amber)]" : "text-slate-200"}`}>
               <span className="min-w-0">{m.label}</span>
               <span className="font-mono tabular-nums">{clock(m.at)}</span>
             </li>

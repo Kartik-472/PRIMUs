@@ -11,20 +11,21 @@ import { RealtimeDot } from "@/components/ui/realtime-dot";
 import { PhaseTimer } from "./phase-timer";
 
 const BADGE: Record<EventStatus["trading"], string> = {
-  OPEN: "bg-emerald-500 text-black",
+  OPEN: "bg-[var(--term-green)] text-black",
   HALTED: "bg-slate-200 text-black",
   PAUSED: "bg-amber-400 text-black",
 };
 
 export function DisplayHeader({ event, status }: { event: DisplayEvent; status: EventStatus }) {
   return (
-    <header className="flex h-[150px] shrink-0 items-center justify-between gap-10 border-b-4 border-white/20 px-12" data-testid="display-header">
+    <header className="flex h-[150px] shrink-0 items-center justify-between gap-10 border-b-2 border-[var(--term-amber-dim)] px-12" data-testid="display-header">
       <div className="min-w-0">
-        <p className="truncate text-[28px] font-medium text-slate-300">
+        <p className="truncate text-[26px] font-semibold tracking-wider text-slate-400 uppercase">
+          <span className="mr-4 bg-[var(--term-amber)] px-3 font-black text-black">PRIMUS</span>
           {event.name}
           {event.is_rehearsal ? <span className="ml-4 rounded bg-violet-500 px-3 py-0.5 text-[22px] font-bold text-white">Rehearsal ×{event.clock_speed}</span> : null}
         </p>
-        <p className="text-[60px] leading-tight font-black tracking-tight" data-testid="display-phase">
+        <p className="text-[56px] leading-tight font-black tracking-tight text-[var(--term-amber)] uppercase" data-testid="display-phase">
           {PHASE_LABELS[status.phase]}
         </p>
       </div>
@@ -62,7 +63,7 @@ export function DisplayHeader({ event, status }: { event: DisplayEvent; status: 
           </span>
         ) : null}
         <div className="text-right">
-          <ServerClock className="text-[60px] leading-none font-bold" />
+          <ServerClock className="text-[60px] leading-none font-bold text-[var(--term-amber)]" />
           <div className="mt-2 flex justify-end [&_span]:text-[18px]">
             <RealtimeDot />
           </div>

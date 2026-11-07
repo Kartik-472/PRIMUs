@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 
 export function Panel({ title, actions, children, className = "" }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm ${className}`}>
+    <section className={`msim-panel min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm ${className}`}>
       {title || actions ? (
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <header className="msim-panel-head flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
           {title ? <h2 className="min-w-0 text-base font-semibold text-slate-900 [overflow-wrap:anywhere]">{title}</h2> : <span />}
           {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
         </header>
@@ -29,7 +29,7 @@ const TONES = {
 export type Tone = keyof typeof TONES;
 
 export function Badge({ tone = "slate", children }: { tone?: Tone; children: ReactNode }) {
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${TONES[tone]}`}>{children}</span>;
+  return <span className={`msim-badge inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${TONES[tone]}`}>{children}</span>;
 }
 
 /**

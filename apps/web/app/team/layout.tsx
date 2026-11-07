@@ -19,6 +19,7 @@ import { loadPlanFacts } from "@/lib/team/home-data";
 import { homePlan } from "@/lib/team/home";
 import { alertTasks, changeText, nextAction, teamTimingChanges } from "@/lib/team/alerts";
 import { PhaseEnd } from "./phase-end";
+import { MarketStrip } from "./market-strip";
 import { BULLETIN_KIND_LABELS, type BulletinKind } from "@/lib/admin/content-bulletins";
 
 export const metadata: Metadata = { title: { template: "%s · Team", default: "Team" } };
@@ -57,57 +58,65 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
       <EventChannel eventId={event.id} refreshSpreadMs={1500}>
         <FeedbackProvider>
         <Heartbeat eventId={event.id} area="team" />
-        <div className="min-h-screen bg-slate-50">
-          <header className="border-b border-slate-200 bg-white">
-            <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 pt-3">
+        <div className="term min-h-screen">
+          <header className="border-b border-slate-200 bg-black">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-[var(--term-amber-dim)] px-4 py-1.5">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h1 className="font-mono text-lg font-bold">{team.code}</h1>
-                <span className="hidden truncate text-sm text-slate-600 sm:inline">{team.name}</span>
+                <span className="bg-[var(--term-amber)] px-1.5 text-xs font-black tracking-widest text-black">PRIMUS</span>
+                <h1 className="text-lg font-bold text-[var(--term-amber)]">
+                  {team.code}
+                  <span className="term-cursor ml-0.5 text-[var(--term-amber)]" aria-hidden>
+                    ▮
+                  </span>
+                </h1>
+                <span className="hidden truncate text-sm text-slate-600 uppercase sm:inline">{team.name}</span>
                 {event.is_rehearsal ? <Badge tone="violet">Rehearsal ×{event.clock_speed}</Badge> : null}
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <RealtimeDot />
                 <SoundToggle />
-                <ServerClock className="font-semibold" />
+                <ServerClock className="font-semibold text-[var(--term-amber)]" />
+                <span className="text-xs text-slate-500">IST</span>
                 <SignOutButton />
               </div>
             </div>
-            <dl className="mx-auto grid max-w-5xl grid-cols-2 gap-x-4 gap-y-1 px-4 py-2 text-sm sm:grid-cols-4">
-              <div>
-                <dt className="text-xs text-slate-500">Phase</dt>
-                <dd className="font-semibold" data-testid="team-phase">
+            <dl className="grid grid-cols-2 gap-px bg-slate-200 text-sm sm:grid-cols-4">
+              <div className="bg-black px-4 py-1.5">
+                <dt className="text-[11px] tracking-wider text-[var(--term-amber-dim)] uppercase">Phase</dt>
+                <dd className="font-semibold text-slate-800" data-testid="team-phase">
                   {PHASE_LABELS[status.phase]}
                   <PhaseEnd endsAt={status.phase_ends_at} phase={status.phase} gate={status.gate} next={status.next_phase} ended={!!status.ended_at} />
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs text-slate-500">Trading</dt>
+              <div className="bg-black px-4 py-1.5">
+                <dt className="text-[11px] tracking-wider text-[var(--term-amber-dim)] uppercase">Trading</dt>
                 <dd>
                   <Badge tone={status.trading === "OPEN" ? "green" : status.trading === "PAUSED" ? "amber" : "slate"}>{status.trading}</Badge>
                   {status.open_round ? (
                     <span className="ml-1 text-slate-600">
-                      round {status.open_round.number} · <Countdown to={status.open_round.closes_at} passed="clearing" />
+                      R{status.open_round.number} · <Countdown to={status.open_round.closes_at} passed="clearing" className="text-[var(--term-amber)]" />
                     </span>
                   ) : status.next_round ? (
                     <span className="ml-1 text-slate-600">
-                      round {status.next_round.number} at {clock(status.next_round.opens_at)}
+                      R{status.next_round.number} at {clock(status.next_round.opens_at)}
                     </span>
                   ) : null}
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs text-slate-500">Cash</dt>
-                <dd className="font-mono font-semibold tabular-nums" data-testid="team-cash">
+              <div className="bg-black px-4 py-1.5">
+                <dt className="text-[11px] tracking-wider text-[var(--term-amber-dim)] uppercase">Cash</dt>
+                <dd className="font-mono font-semibold text-[var(--term-green)] tabular-nums" data-testid="team-cash">
                   {money(team.cash)}
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs text-slate-500">Built · rescued</dt>
-                <dd className="font-mono" data-testid="team-companies">
+              <div className="bg-black px-4 py-1.5">
+                <dt className="text-[11px] tracking-wider text-[var(--term-amber-dim)] uppercase">Built · rescued</dt>
+                <dd className="font-mono text-[var(--term-cyan)]" data-testid="team-companies">
                   {built?.ticker ?? "—"} · {rescued?.ticker ?? "—"}
                 </dd>
               </div>
             </dl>
+            <MarketStrip eventId={event.id} />
             <TeamNav phase={status.phase} />
           </header>
           <ActionBar task={next && next.href ? { title: next.title, href: next.href, linkLabel: next.linkLabel, due: next.due } : null} />
@@ -140,16 +149,16 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
           {latest ? (
             <Link
               href="/team/bulletins"
-              className="mx-auto block max-w-5xl px-4 pt-3 text-sm [overflow-wrap:anywhere]"
+              className="mx-auto block max-w-7xl px-4 pt-3 text-sm [overflow-wrap:anywhere]"
               data-testid="latest-bulletin"
             >
-              <span className="rounded bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">{BULLETIN_KIND_LABELS[latest.kind as BulletinKind] ?? latest.kind}</span>{" "}
+              <span className="bg-[var(--term-amber)] px-2 py-0.5 text-xs font-bold text-black uppercase">{BULLETIN_KIND_LABELS[latest.kind as BulletinKind] ?? latest.kind}</span>{" "}
               <span className="font-mono text-xs text-slate-500">{clock(latest.published_at)}</span>{" "}
               <span className="font-semibold text-slate-900 underline-offset-2 hover:underline">{latest.title}</span>
             </Link>
           ) : null}
-          <FeedbackBar className="mx-auto max-w-5xl px-4 pt-3" />
-          <main className="mx-auto max-w-5xl px-4 py-4">{children}</main>
+          <FeedbackBar className="mx-auto max-w-7xl px-4 pt-3" />
+          <main className="mx-auto max-w-7xl px-4 py-4">{children}</main>
         </div>
       </FeedbackProvider>
       </EventChannel>

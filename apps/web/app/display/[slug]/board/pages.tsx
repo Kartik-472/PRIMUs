@@ -20,8 +20,8 @@ import {
   type PriceRowFit,
 } from "@/lib/display/board";
 
-const TEXT = { up: "text-emerald-400", down: "text-red-500", flat: "text-slate-400" } as const;
-const CHANGE = { up: "text-emerald-400", down: "text-red-500", flat: "text-slate-200" } as const;
+const TEXT = { up: "text-[var(--term-green)]", down: "text-[var(--term-red)]", flat: "text-slate-500" } as const;
+const CHANGE = { up: "text-[var(--term-green)]", down: "text-[var(--term-red)]", flat: "text-slate-300" } as const;
 const GLOW = { UP: "bg-emerald-500/25 ring-4 ring-emerald-400", DOWN: "bg-red-500/25 ring-4 ring-red-500", FLAT: "" } as const;
 const MOVE_WORDS: Record<Move, string> = { UP: "up", DOWN: "down", FLAT: "unchanged" };
 
@@ -72,7 +72,7 @@ export function BoardPages({
           ))}
         </div>
       )}
-      <footer className="flex h-[44px] shrink-0 items-center justify-between gap-8 border-t-2 border-white/15 px-8 text-[28px] text-slate-300">
+      <footer className="flex h-[44px] shrink-0 items-center justify-between gap-8 border-t-2 border-[var(--term-amber-dim)] px-8 text-[26px] text-slate-400">
         <p className="min-w-0 truncate" data-testid="board-legend">
           {onExtra ? (
             "The leaderboard: Round 1 + Round 2 + Round 3 points so far (Round 3 at current market prices). It freezes at 03:30."
@@ -92,7 +92,7 @@ export function BoardPages({
           )}
         </p>
         {pages > 1 ? (
-          <p className="shrink-0 font-mono font-bold text-white tabular-nums" data-testid="board-page" aria-label={`Page ${page + 1} of ${pages}`}>
+          <p className="shrink-0 font-mono font-bold text-[var(--term-amber)] tabular-nums" data-testid="board-page" aria-label={`Page ${page + 1} of ${pages}`}>
             {page + 1} / {pages}
           </p>
         ) : null}
@@ -109,7 +109,8 @@ const SIZES = {
     arrow: "text-[44px]",
     name: "text-[28px] leading-[1.2]",
     pending: "text-[30px]",
-    fit: { normal: { price: "text-[44px]", change: "text-[34px]" }, small: { price: "text-[44px]", change: "text-[28px]" }, smaller: { price: "text-[40px]", change: "text-[26px]" } },
+    // Sized for the monospace face of the terminal look (wider than the old sans): a 7-character price and change fit a tile.
+    fit: { normal: { price: "text-[40px]", change: "text-[30px]" }, small: { price: "text-[40px]", change: "text-[26px]" }, smaller: { price: "text-[36px]", change: "text-[24px]" } },
   },
   compact: {
     pad: "py-1",
@@ -117,7 +118,7 @@ const SIZES = {
     arrow: "text-[36px]",
     name: "text-[24px] leading-[1.15]",
     pending: "text-[26px]",
-    fit: { normal: { price: "text-[38px]", change: "text-[28px]" }, small: { price: "text-[38px]", change: "text-[24px]" }, smaller: { price: "text-[34px]", change: "text-[22px]" } },
+    fit: { normal: { price: "text-[34px]", change: "text-[26px]" }, small: { price: "text-[34px]", change: "text-[22px]" }, smaller: { price: "text-[30px]", change: "text-[20px]" } },
   },
 } satisfies Record<string, { pad: string; ticker: string; arrow: string; name: string; pending: string; fit: Record<PriceRowFit, { price: string; change: string }> }>;
 type Size = (typeof SIZES)[keyof typeof SIZES];
@@ -127,12 +128,12 @@ function Tile({ tile: t, round, glow, size }: { tile: BoardTile; round: number |
   const lit = glow && t.move !== null ? GLOW[t.move] : "";
   return (
     <div
-      className={`flex min-h-0 min-w-0 flex-col justify-between overflow-hidden rounded-xl border-2 border-white/15 bg-white/[0.06] px-4 ${size.pad} transition-[background-color,box-shadow] duration-1000 ${lit}`}
+      className={`flex min-h-0 min-w-0 flex-col justify-between overflow-hidden rounded-xl border border-white/15 bg-[#0a0d10] px-4 ${size.pad} transition-[background-color,box-shadow] duration-1000 ${lit}`}
       data-testid={`tile-${t.ticker}`}
       data-lit={lit ? "true" : undefined}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className={`leading-none font-black tracking-tight ${size.ticker}`} data-testid="tile-ticker">
+        <span className={`leading-none font-black tracking-tight text-[var(--term-amber)] ${size.ticker}`} data-testid="tile-ticker">
           {t.ticker}
         </span>
         {t.move ? (
@@ -147,7 +148,7 @@ function Tile({ tile: t, round, glow, size }: { tile: BoardTile; round: number |
         ) : null}
       </div>
       <div className="flex min-w-0 items-baseline gap-3">
-        <p className={`min-w-0 flex-1 truncate text-slate-300 ${size.name}`} data-testid="tile-name">
+        <p className={`min-w-0 flex-1 truncate text-slate-400 uppercase ${size.name}`} data-testid="tile-name">
           {t.name}
         </p>
         {t.closing ? (
