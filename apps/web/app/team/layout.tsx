@@ -54,7 +54,7 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
     .maybeSingle<{ id: string; kind: string; title: string; published_at: string }>();
   return (
     <ClockProvider serverTime={status.server_time} pausedAt={status.paused ? status.paused_at : null}>
-      <EventChannel eventId={event.id}>
+      <EventChannel eventId={event.id} refreshSpreadMs={1500}>
         <FeedbackProvider>
         <Heartbeat eventId={event.id} area="team" />
         <div className="min-h-screen bg-slate-50">

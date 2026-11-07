@@ -31,11 +31,14 @@ export function EventChannel({
   staff = false,
   children,
   refreshDelayMs = 250,
+  refreshSpreadMs = 0,
 }: {
   eventId: string;
   staff?: boolean;
   children: ReactNode;
   refreshDelayMs?: number;
+  /** Adds a random 0–refreshSpreadMs to each refresh, so hundreds of screens don't re-read at the same instant. */
+  refreshSpreadMs?: number;
 }) {
   const router = useRouter();
   const [eventStatus, setEventStatus] = useState<ChannelStatus>("CONNECTING");
@@ -51,9 +54,11 @@ export function EventChannel({
     let cancelled = false;
     const onMessage = (msg: { event: string; payload?: unknown }) => {
       setLast({ event: msg.event, payload: (msg.payload ?? {}) as Record<string, unknown>, receivedAt: Date.now() });
-      // Several messages arrive together on a clearing; refresh once.
+      // Several messages arrive together on a clearing; refresh once. Every screen hears a broadcast at the same moment,
+      // so team screens wait a random extra moment: 600 phones re-reading within the same 250 ms would hit the server
+      // and the database as one spike; spread over 1.5 s they are a steady stream (and still updated within 2 s).
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => router.refresh(), refreshDelayMs);
+      timer.current = setTimeout(() => router.refresh(), refreshDelayMs + Math.random() * refreshSpreadMs);
     };
     const channel = sb.channel(`event:${eventId}`, { config: { private: true } }).on("broadcast", { event: "*" }, onMessage);
     const staffChannel = staff ? sb.channel(`staff:${eventId}`, { config: { private: true } }).on("broadcast", { event: "*" }, onMessage) : null;
@@ -73,7 +78,7 @@ export function EventChannel({
       void sb.removeChannel(channel);
       if (staffChannel) void sb.removeChannel(staffChannel);
     };
-  }, [eventId, staff, router, refreshDelayMs]);
+  }, [eventId, staff, router, refreshDelayMs, refreshSpreadMs]);
 
   // Joined (first, or back after a drop): whatever was broadcast before was missed, so read the page again once. The
   // "caught up" mark is set in the same transition as that read, so it lands with the refreshed page (or after 5 s at
