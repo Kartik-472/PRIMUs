@@ -3,7 +3,8 @@ import Link from "next/link";
 import { phaseReached, type SubmissionType } from "@msim/engine";
 import { loadTeamContext } from "@/lib/team/context";
 import { loadCompanyView, type PublicSubmission } from "@/lib/team/market-data";
-import { PUBLIC_FROM, SUBMISSION_TITLES, candlePoints, historyLines, marketOpensText } from "@/lib/team/market";
+import { PUBLIC_FROM, SUBMISSION_TITLES, historyLines, marketOpensText } from "@/lib/team/market";
+import { detailedCandles, tradingWindow } from "@/lib/chart";
 import { CandleChart } from "@/components/ui/candle-chart";
 import { clock, money } from "@/lib/format";
 import { Badge, Notice, Panel, Stat, Table, Td } from "@/components/ui/ui";
@@ -12,6 +13,9 @@ import { Submission } from "../submission";
 import { CrisisCard } from "../crisis-card";
 
 export const metadata: Metadata = { title: "Market" };
+
+/** The moving average on the detailed charts: one cleared round's worth of candles. */
+const AVERAGE = 10;
 
 const TONE = { 1: "text-emerald-700", 0: "text-slate-600", [-1]: "text-red-700" } as const;
 
@@ -43,7 +47,7 @@ export default async function CompanyPage({ params }: PageProps<"/team/market/[t
       </div>
     );
   }
-  const { company: c, history, submissions, scores, crisis, types } = view;
+  const { company: c, history, submissions, scores, crisis, types, flow } = view;
   const lines = historyLines(history);
   const waiting = (["PRD", "SOLUTION"] as SubmissionType[]).filter((t) => !types.includes(t));
 
@@ -66,7 +70,14 @@ export default async function CompanyPage({ params }: PageProps<"/team/market/[t
           {c.closing_price !== null ? <Stat label="Closing price" value={money(c.closing_price)} hint="½ market + ½ score-based" /> : <Stat label="Closing price" value="—" hint="at the closing bell" />}
         </div>
         <div className="mt-4">
-          <CandleChart candles={candlePoints(lines, history)} label={`${c.ticker} price by step`} secondName="Score-based price" live testId="price-chart" />
+          <CandleChart
+            candles={tradingWindow(detailedCandles([...history].sort((a, b) => Number(a.id) - Number(b.id)), flow))}
+            label={`${c.ticker} price`}
+            secondName="Score-based price"
+            average={AVERAGE}
+            live
+            testId="price-chart"
+          />
         </div>
       </Panel>
 

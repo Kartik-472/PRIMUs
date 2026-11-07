@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { axisMoney, candleGeometry, candlesFrom, chartGeometry, chartSummary, indexCandles, indexChartPoints, marketIndex, niceStep, sparkPath, type ChartBox } from "./chart";
+import { axisMoney, candleGeometry, candlesFrom, detailedCandles, detailedIndex, flowSlices, movingAverage, tradingWindow, chartGeometry, chartSummary, indexCandles, indexChartPoints, marketIndex, niceStep, sparkPath, type ChartBox } from "./chart";
 
 const box: ChartBox = { width: 400, height: 200, padLeft: 50, padRight: 10, padTop: 10, padBottom: 30 };
 
@@ -158,5 +158,43 @@ describe("candles", () => {
     expect(g.candles[2]!.volTop).toBe(160);
     expect(g.candles[1]!.volTop).toBe(180);
     expect(g.candles[0]!.volTop).toBe(200);
+  });
+});
+
+describe("detailed candles", () => {
+  const steps = [
+    { company_id: "c1", kind: "START", market_before: null, market_after: 1000, score_after: 1000 },
+    { company_id: "c1", kind: "CRISIS", market_before: 1000, market_after: 850, score_after: 850 },
+    { company_id: "c1", kind: "CLEARING", market_before: 850, market_after: 864, buy_qty: 3300, sell_qty: 800 },
+  ];
+  // Slice 0: +500 then −800 (running net 500, −300); slice 9: +2,000 (running net 1,700).
+  const flow = flowSlices([
+    [1, "c1", 0, 500, -300, -300, 1300],
+    [1, "c1", 9, 1700, 1700, 1700, 2000],
+  ]);
+
+  test("a round draws as ten candles priced by the clearing rule, ending at the clearing price", () => {
+    const c = detailedCandles(steps, flow);
+    expect(c).toHaveLength(12);
+    expect(c[2]).toMatchObject({ label: "Round 1 · 1/10", open: 850, high: 854, low: 847, close: 847, volume: 1300, marker: "R1", second: 850 });
+    expect(c[3]).toMatchObject({ open: 847, close: 847, high: 847, low: 847, volume: null });
+    expect(c[11]).toMatchObject({ open: 847, close: 864, high: 864, low: 847, volume: 2000 });
+  });
+
+  test("the index follows the companies candle by candle", () => {
+    const idx = detailedIndex(steps, flow);
+    expect(idx).toHaveLength(12);
+    expect(idx[0]).toMatchObject({ open: 100_000, close: 100_000 });
+    expect(idx.at(-1)).toMatchObject({ open: 84_700, close: 86_400, volume: 2000 });
+  });
+
+  test("the trading window starts at round 1 once it has cleared", () => {
+    const c = detailedCandles(steps, flow);
+    expect(tradingWindow(c)).toHaveLength(10);
+    expect(tradingWindow(c.slice(0, 2))).toHaveLength(2);
+  });
+
+  test("moving average", () => {
+    expect(movingAverage([1, 2, 3, 4], 2)).toEqual([null, 1.5, 2.5, 3.5]);
   });
 });

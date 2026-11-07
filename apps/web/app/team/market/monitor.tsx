@@ -1,10 +1,11 @@
-// The market monitor at the top of the Market page: the equal-weight market index as candles, one per step, drawn live (the
+// The market monitor at the top of the Market page: the equal-weight market index as detailed candles (ten to each
+// cleared round, from its order flow; lib/chart.ts detailedIndex) with a moving average, drawn live (the
 // page re-reads itself at every clearing, so the chart gains a point the moment a round clears), and the companies
 // that moved most since their starting price, each with small candles of its steps.
 
 import Link from "next/link";
 import type { EventStatus } from "@/lib/event-status";
-import { INDEX_BASE, indexCandles, indexText, type IndexPoint } from "@/lib/chart";
+import { INDEX_BASE, indexText, tradingWindow, type Candle, type IndexPoint } from "@/lib/chart";
 import type { MarketLine } from "@/lib/team/market";
 import { bp, money } from "@/lib/format";
 import { changeSinceStartBp } from "@/lib/display/board";
@@ -14,7 +15,7 @@ import { Panel } from "@/components/ui/ui";
 
 const MOVERS = 3;
 
-export function MarketMonitor({ index, lines, status }: { index: IndexPoint[]; lines: MarketLine[]; status: EventStatus }) {
+export function MarketMonitor({ index, detail, lines, status }: { index: IndexPoint[]; detail: Candle[]; lines: MarketLine[]; status: EventStatus }) {
   const last = index.at(-1);
   const change = last ? last.level - INDEX_BASE * 100 : 0;
   const moved = lines
@@ -53,9 +54,10 @@ export function MarketMonitor({ index, lines, status }: { index: IndexPoint[]; l
               </span>
             ) : null}
           </p>
-          {index.length > 1 ? (
+          {detail.length > 1 ? (
             <CandleChart
-              candles={indexCandles(index)}
+              candles={tradingWindow(detail)}
+              average={10}
               label="PRIMUS index by step"
               format={(v) => indexText(v)}
               live

@@ -2,6 +2,8 @@
 // components (components/ui/line-chart.tsx) only draw it. Values are integer cents; x is the step's index, so every
 // round gets the same width whatever its length.
 
+import { clearingPrice } from "@msim/engine";
+
 export interface ChartPoint {
   /** Shown in the tooltip and the accessible summary, e.g. "Round 4". */
   label: string;
@@ -204,13 +206,16 @@ export function indexText(level: number): string {
 // ───────────────────────────── Candlesticks ─────────────────────────────
 
 /**
- * One candle: a step's price before (open) and after (close). The market is blind, so no price exists between the
- * two and the candle has no wicks. Up steps are green, down steps red, an unchanged step a thin grey bar.
+ * One candle: open, close and, when known, the highest and lowest price in between (drawn as the wick). Up candles
+ * are green, down candles red, an unchanged one a thin grey bar.
  */
 export interface Candle {
   label: string;
   open: number;
   close: number;
+  /** The highest and lowest price within the candle; the body's ends when left out. */
+  high?: number | null;
+  low?: number | null;
   /** Shares traded at this step (bought + sold), drawn as a bar under the candle; null for none. */
   volume?: number | null;
   /** A second series drawn as a dashed line through the candles (the score-based price), or null. */
@@ -225,6 +230,9 @@ export interface PlacedCandle extends Candle {
   /** Top and bottom y of the body (at least 2 units apart, so an unchanged step still shows). */
   top: number;
   bottom: number;
+  /** The wick's ends: the high and the low. */
+  wickTop: number;
+  wickBottom: number;
   tone: "up" | "down" | "flat";
   /** The volume bar's top y (equal to `volBottom` for no volume). */
   volTop: number;
@@ -239,6 +247,10 @@ export interface CandleGeometry {
   width: number;
   /** The second series' path, broken where it has no value. */
   path2: string;
+  /** The moving average of the closes (`average` candles), from the first candle it has a full window for. */
+  pathAverage: string;
+  /** y of the last close, for the last-price line. */
+  lastY: number;
   yTicks: { y: number; value: number }[];
   min: number;
   max: number;
@@ -254,10 +266,10 @@ export function candlesFrom(values: readonly number[], labels: readonly string[]
 }
 
 /** Where every candle goes in `box`; the bottom fifth holds the volume bars when any candle has volume. */
-export function candleGeometry(input: readonly Candle[], box: ChartBox, ticks = 4): CandleGeometry {
-  const empty = { box, candles: [], width: 0, path2: "", yTicks: [], min: 0, max: 0, volTop: 0, volBottom: 0, maxVolume: 0 };
+export function candleGeometry(input: readonly Candle[], box: ChartBox, ticks = 4, average = 0): CandleGeometry {
+  const empty = { box, candles: [], width: 0, path2: "", pathAverage: "", lastY: 0, yTicks: [], min: 0, max: 0, volTop: 0, volBottom: 0, maxVolume: 0 };
   if (input.length === 0) return empty;
-  const values = input.flatMap((c) => [c.open, c.close, ...(c.second != null ? [c.second] : [])]);
+  const values = input.flatMap((c) => [c.open, c.close, ...(c.high != null ? [c.high] : []), ...(c.low != null ? [c.low] : []), ...(c.second != null ? [c.second] : [])]);
   let lo = Math.min(...values);
   let hi = Math.max(...values);
   if (hi === lo) {
@@ -277,7 +289,7 @@ export function candleGeometry(input: readonly Candle[], box: ChartBox, ticks = 
   const priceBottom = plotBottom - volH - gap;
   const priceH = priceBottom - box.padTop;
   const slot = plotW / input.length;
-  const width = round1(Math.max(2, Math.min(slot * 0.62, 48)));
+  const width = round1(Math.max(1.5, Math.min(slot * 0.62, 48)));
   const yAt = (v: number) => round1(box.padTop + priceH - ((v - min) / (max - min)) * priceH);
   const candles: PlacedCandle[] = input.map((c, i) => {
     const x = round1(box.padLeft + slot * (i + 0.5));
@@ -296,6 +308,8 @@ export function candleGeometry(input: readonly Candle[], box: ChartBox, ticks = 
       x,
       top,
       bottom,
+      wickTop: Math.min(top, yAt(Math.max(c.open, c.close, c.high ?? c.close))),
+      wickBottom: Math.max(bottom, yAt(Math.min(c.open, c.close, c.low ?? c.close))),
       tone: c.close > c.open ? "up" : c.close < c.open ? "down" : "flat",
       volTop: maxVolume > 0 ? round1(plotBottom - (v / maxVolume) * volH) : plotBottom,
       y2: c.second != null ? yAt(c.second) : null,
@@ -311,9 +325,13 @@ export function candleGeometry(input: readonly Candle[], box: ChartBox, ticks = 
     path2 += `${path2 ? " " : ""}${pen ? "L" : "M"}${c.x} ${c.y2}`;
     pen = true;
   }
+  const avg = average > 1 ? movingAverage(input.map((c) => c.close), average) : [];
+  const pathAverage = candles
+    .map((c, i) => (avg[i] == null ? null : `${c.x} ${yAt(avg[i]!)}`))
+    .reduce<string>((d, p) => (p === null ? d : `${d}${d ? " L" : "M"}${p}`), "");
   const yTicks: { y: number; value: number }[] = [];
   for (let v = min; v <= max; v += step) yTicks.push({ y: yAt(v), value: v });
-  return { box, candles, width, path2, yTicks, min, max, volTop: plotBottom - volH, volBottom: plotBottom, maxVolume };
+  return { box, candles, width, path2, pathAverage, lastY: yAt(input.at(-1)!.close), yTicks, min, max, volTop: plotBottom - volH, volBottom: plotBottom, maxVolume };
 }
 
 /** The index as candles: each step opens at the level before it; the volume is the market's shares traded. */
@@ -326,4 +344,153 @@ export function indexCandles(index: readonly IndexPoint[]): Candle[] {
     volume: p.volume || null,
     marker: points[i]!.marker ?? null,
   }));
+}
+
+/** The average of each value and the n − 1 before it (null until there are n values). */
+export function movingAverage(values: readonly number[], n: number): (number | null)[] {
+  let sum = 0;
+  return values.map((v, i) => {
+    sum += v;
+    if (i >= n) sum -= values[i - n]!;
+    return i >= n - 1 ? sum / n : null;
+  });
+}
+
+// ───────────────────────────── The detailed chart ─────────────────────────────
+
+/** How many candles each cleared round is drawn as (public.round_flow's slices). */
+export const ROUND_SLICES = 10;
+
+/** A price step as the charts read it from round_prices (by id, so in the order of the night). */
+export interface FlowStep {
+  company_id: string;
+  kind: string;
+  market_before: number | null;
+  market_after: number;
+  buy_qty?: number | null;
+  sell_qty?: number | null;
+  /** The score-based price after this step, when the row carries it (drawn dashed, carried forward). */
+  score_after?: number | null;
+}
+
+/** One slice of a cleared round for one company (public.round_flow): the running net demand's high, low and end. */
+export interface FlowSlice {
+  round: number;
+  company_id: string;
+  slice: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+/** public.round_flow's rows ([round, company, slice, high, low, close, volume]) as slices. */
+export function flowSlices(rows: readonly (readonly [number, string, number, number, number, number, number])[]): FlowSlice[] {
+  return rows.map(([round, company_id, slice, high, low, close, volume]) => ({ round, company_id, slice, high: Number(high), low: Number(low), close: Number(close), volume: Number(volume) }));
+}
+
+const STEP_MARKERS: Record<string, string> = { CRISIS: "Crisis", REVEAL: "Reveal", CLOSE: "Close" };
+const STEP_LABELS: Record<string, string> = { START: "Starting price", CRISIS: "Crisis", REVEAL: "Score reveal", CLOSE: "Closing price" };
+
+/**
+ * One company's night as detailed candles: one candle for each one-off step (start, crisis, reveal, close) and ten for
+ * each cleared round. A round's slice runs from the price its running net demand pointed to at the slice's start to
+ * the price at its end, with the wick at the highest and lowest point between; the price for a net demand is the
+ * clearing rule on the price before the round, so the last slice ends at the round's clearing price exactly. A round
+ * with no flow for a slice draws a flat candle there. Appeals correct the latest candle's close.
+ */
+export function detailedCandles(steps: readonly Omit<FlowStep, "company_id">[], flow: readonly FlowSlice[]): Candle[] {
+  const byRound = new Map<string, FlowSlice>();
+  for (const f of flow) byRound.set(`${f.round}:${f.slice}`, f);
+  const out: Candle[] = [];
+  let round = 0;
+  let score: number | null = null;
+  for (const s of steps) {
+    const after = Number(s.market_after);
+    if (s.score_after != null) score = Number(s.score_after);
+    if (s.kind === "APPEAL") {
+      const last = out.at(-1);
+      if (last) {
+        last.close = after;
+        last.high = Math.max(last.high ?? after, after);
+        last.low = Math.min(last.low ?? after, after);
+      }
+      continue;
+    }
+    if (s.kind !== "CLEARING") {
+      const open = s.kind === "START" || s.market_before === null ? after : Number(s.market_before);
+      out.push({ label: STEP_LABELS[s.kind] ?? s.kind, open, close: after, marker: STEP_MARKERS[s.kind] ?? null, second: score });
+      continue;
+    }
+    round++;
+    const before = Number(s.market_before ?? after);
+    let net = 0;
+    for (let k = 0; k < ROUND_SLICES; k++) {
+      const f = byRound.get(`${round}:${k}`);
+      const open = clearingPrice(before, net);
+      const close = k === ROUND_SLICES - 1 ? after : clearingPrice(before, f ? f.close : net);
+      const high = f ? Math.max(open, close, clearingPrice(before, f.high)) : Math.max(open, close);
+      const low = f ? Math.min(open, close, clearingPrice(before, f.low)) : Math.min(open, close);
+      out.push({ label: `Round ${round} · ${k + 1}/${ROUND_SLICES}`, open, close, high, low, volume: f ? f.volume : null, marker: k === 0 ? `R${round}` : null, second: score });
+      if (f) net = f.close;
+    }
+  }
+  return out;
+}
+
+/**
+ * The candles from the first trading round on, once trading has begun: the start and the crisis (a 15% fall) would
+ * otherwise set the scale and squeeze every round's candles into a thin band. Before round 1 clears, all of them.
+ */
+export function tradingWindow(candles: readonly Candle[]): Candle[] {
+  const i = candles.findIndex((c) => c.marker === "R1");
+  return i <= 0 ? [...candles] : candles.slice(i);
+}
+
+/**
+ * The PRIMUS index as detailed candles: every company's detailed candles, each price over that company's starting
+ * price × 1,000 (in hundredths of a point), averaged candle by candle. A candle's wick is the average of the
+ * companies' highs and lows (the companies seldom peak at the same moment, so it is the market's typical range in
+ * that slice). Volume is the market's shares traded.
+ */
+export function detailedIndex(steps: readonly FlowStep[], flow: readonly FlowSlice[]): Candle[] {
+  const byCompany = new Map<string, FlowStep[]>();
+  for (const s of steps) (byCompany.get(s.company_id) ?? byCompany.set(s.company_id, []).get(s.company_id)!).push(s);
+  const flowBy = new Map<string, FlowSlice[]>();
+  for (const f of flow) (flowBy.get(f.company_id) ?? flowBy.set(f.company_id, []).get(f.company_id)!).push(f);
+  const series: Candle[][] = [];
+  const starts: number[] = [];
+  for (const [id, list] of byCompany) {
+    const start = list.find((s) => s.kind === "START");
+    if (!start || !(Number(start.market_after) > 0)) continue;
+    series.push(detailedCandles(list, flowBy.get(id) ?? []));
+    starts.push(Number(start.market_after));
+  }
+  if (series.length === 0) return [];
+  const len = Math.min(...series.map((c) => c.length));
+  const out: Candle[] = [];
+  const pts = (v: number, i: number) => (v / starts[i]!) * INDEX_BASE * 100;
+  for (let k = 0; k < len; k++) {
+    let o = 0, c = 0, h = 0, l = 0, vol = 0;
+    series.forEach((cs, i) => {
+      const x = cs[k]!;
+      o += pts(x.open, i);
+      c += pts(x.close, i);
+      h += pts(x.high ?? Math.max(x.open, x.close), i);
+      l += pts(x.low ?? Math.min(x.open, x.close), i);
+      vol += x.volume ?? 0;
+    });
+    const n = series.length;
+    const first = series[0]![k]!;
+    out.push({
+      label: first.label,
+      open: Math.round(o / n),
+      close: Math.round(c / n),
+      high: Math.round(h / n),
+      low: Math.round(l / n),
+      volume: vol || null,
+      marker: first.marker ?? null,
+    });
+  }
+  return out;
 }

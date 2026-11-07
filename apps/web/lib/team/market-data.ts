@@ -7,7 +7,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PhaseCode, SubmissionType } from "@msim/engine";
 import { supabaseServer } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetch-all";
-import { marketIndex, type IndexPoint } from "@/lib/chart";
+import { detailedIndex, marketIndex, type Candle, type FlowSlice, type IndexPoint } from "@/lib/chart";
+import { loadFlow, loadMarketSteps } from "@/lib/market-flow";
 import { publicTypes, type ClearingRow, type ListedCompany, type PriceKind, type PriceRow } from "./market";
 import type { ScoreRow } from "./round-data";
 
@@ -36,12 +37,14 @@ export interface MarketList {
   trends: Record<string, number[]>;
   /** The equal-weight market index after every market-wide step (lib/chart.ts marketIndex). */
   index: IndexPoint[];
+  /** The index as detailed candles (ten to a cleared round), for the market monitor. */
+  detail: Candle[];
 }
 
 /** Every company, the last cleared round's prices (every company gets a row each round) and the trend lines. */
 export async function loadMarketList(eventId: string): Promise<MarketList> {
   const sb = await supabaseServer();
-  const [companies, round, steps] = await Promise.all([
+  const [companies, round, market] = await Promise.all([
     loadCompanies(sb, eventId),
     sb
       .from("rounds")
@@ -52,16 +55,16 @@ export async function loadMarketList(eventId: string): Promise<MarketList> {
       .limit(1)
       .maybeSingle<{ id: string; number: number }>()
       .then((r) => must(r, "the rounds")),
-    fetchAll<{ company_id: string; kind: string; market_after: number; buy_qty: number; sell_qty: number }>((from, to) =>
-      sb.from("round_prices").select("company_id, kind, market_after, buy_qty, sell_qty").eq("event_id", eventId).order("id").range(from, to),
-    ),
+    loadMarketSteps(sb, eventId),
   ]);
+  const { steps, flow } = market;
+  const detail = detailedIndex(steps, flow);
   const trends: Record<string, number[]> = {};
   for (const s of steps) (trends[s.company_id] ??= []).push(Number(s.market_after));
   const index = marketIndex(steps);
-  if (!round) return { companies, lastRound: null, trends, index };
+  if (!round) return { companies, lastRound: null, trends, index, detail };
   const rows = must(await sb.from("round_prices").select("company_id, market_before, market_after").eq("round_id", round.id).eq("kind", "CLEARING"), "the round's prices") as ClearingRow[];
-  return { companies, lastRound: { number: round.number, rows }, trends, index };
+  return { companies, lastRound: { number: round.number, rows }, trends, index, detail };
 }
 
 export interface PublicSubmission {
@@ -86,6 +89,8 @@ export interface CompanyView {
   scores: Partial<Record<SubmissionType, ScoreRow>>;
   crisis: CrisisCardRow | null;
   types: SubmissionType[];
+  /** The company's share of the cleared rounds' order flow, for the detailed chart. */
+  flow: FlowSlice[];
 }
 
 const SCORE_COLUMNS = "company_id, type, final_score, median, penalty, missing, breakdown, rationale";
@@ -96,7 +101,7 @@ export async function loadCompanyView(eventId: string, ticker: string, phase: Ph
   const company = must(await sb.from("companies").select(COMPANY_COLUMNS).eq("event_id", eventId).eq("ticker", ticker).maybeSingle<MarketCompany>(), "the company");
   if (!company) return null;
   const types = publicTypes(phase);
-  const [history, rounds, subs, scores, crisis] = await Promise.all([
+  const [history, rounds, subs, scores, crisis, flow] = await Promise.all([
     fetchAll<Omit<PriceRow, "round_number"> & { round_id: string | null }>((from, to) =>
       sb
         .from("round_prices")
@@ -118,6 +123,7 @@ export async function loadCompanyView(eventId: string, ticker: string, phase: Ph
     company.crisis_card_id
       ? sb.from("crisis_cards").select("id, number, category, title, body").eq("id", company.crisis_card_id).maybeSingle<CrisisCardRow>().then((r) => must(r, "the crisis card"))
       : Promise.resolve(null),
+    loadFlow(sb, eventId),
   ]);
   const numbers = new Map(rounds.map((r) => [r.id, r.number]));
   return {
@@ -127,6 +133,7 @@ export async function loadCompanyView(eventId: string, ticker: string, phase: Ph
     scores: Object.fromEntries(scores.map((s) => [s.type, s])),
     crisis,
     types,
+    flow: flow.filter((f) => f.company_id === company.id),
   };
 }
 

@@ -1,16 +1,17 @@
-// The chart page of the price board: the PRIMUS index as candles, one per step, large enough to read from the back of the
+// The chart page of the price board: the PRIMUS index as detailed candles (ten to each cleared round) with a moving
+// average, large enough to read from the back of the
 // hall, and the companies that moved most since their starting price with small candles of their steps. It takes its turn in the
 // board's rotation; the page re-reads itself at every clearing, so the chart gains a point as soon as a round clears.
 
-import { INDEX_BASE, indexCandles, indexText, type IndexPoint } from "@/lib/chart";
+import { INDEX_BASE, indexText, tradingWindow, type Candle, type IndexPoint } from "@/lib/chart";
 import { bp, money } from "@/lib/format";
 import type { BoardTile } from "@/lib/display/board";
 import { CandleChart, MiniCandles } from "@/components/ui/candle-chart";
 
 const MOVERS = 4;
-const BOX = { width: 1180, height: 640, padLeft: 150, padRight: 40, padTop: 56, padBottom: 24 };
+const BOX = { width: 1180, height: 660, padLeft: 150, padRight: 150, padTop: 56, padBottom: 12 };
 
-export function ChartPage({ index, tiles, trends }: { index: IndexPoint[]; tiles: BoardTile[]; trends: Record<string, number[]> }) {
+export function ChartPage({ index, detail, tiles, trends }: { index: IndexPoint[]; detail: Candle[]; tiles: BoardTile[]; trends: Record<string, number[]> }) {
   const last = index.at(-1);
   const change = last ? Math.round((last.level - INDEX_BASE * 100) / 10) : 0;
   const moved = tiles.filter((t): t is BoardTile & { changeBp: number } => t.changeBp !== null && t.changeBp !== 0);
@@ -38,9 +39,10 @@ export function ChartPage({ index, tiles, trends }: { index: IndexPoint[]; tiles
           </span>
         </h2>
         <div className="min-h-0 flex-1">
-          {index.length > 1 ? (
+          {detail.length > 1 ? (
             <CandleChart
-              candles={indexCandles(index)}
+              candles={tradingWindow(detail)}
+              average={10}
               label="PRIMUS index by step"
               format={(v) => indexText(v)}
               box={BOX}

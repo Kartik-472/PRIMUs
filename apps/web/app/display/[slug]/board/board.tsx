@@ -21,7 +21,7 @@ import { ChartPage } from "./chart-page";
 export async function Board({ event, status, compact = false }: { event: DisplayEvent; status: EventStatus; compact?: boolean }) {
   if (!event.prices_started_at) return <Evening event={event} status={status} />;
 
-  const [{ companies, round, trends, index }, leaderboard] = await Promise.all([loadBoard(event.id), event.leaderboard_frozen_at ? Promise.resolve(null) : loadLiveLeaderboard(event.id)]);
+  const [{ companies, round, trends, index, detail }, leaderboard] = await Promise.all([loadBoard(event.id), event.leaderboard_frozen_at ? Promise.resolve(null) : loadLiveLeaderboard(event.id)]);
   const tiles = boardTiles(companies, round?.round_prices ?? [], event.market_closed_at !== null);
   if (tiles.length === 0) {
     return (
@@ -42,7 +42,7 @@ export async function Board({ event, status, compact = false }: { event: Display
         trends={trends}
         extras={[
           // The chart page once there is a price to chart; the leaderboard until the 03:30 freeze.
-          ...(tiles.some((t) => t.price !== null) ? [{ key: "chart", node: <ChartPage index={index} tiles={tiles} trends={trends} />, legend: CHART_LEGEND }] : []),
+          ...(tiles.some((t) => t.price !== null) ? [{ key: "chart", node: <ChartPage index={index} detail={detail} tiles={tiles} trends={trends} />, legend: CHART_LEGEND }] : []),
           ...(leaderboard ? [{ key: "leaderboard", node: <LeaderboardPage rows={leaderboard} />, legend: LEADERBOARD_LEGEND }] : []),
         ]}
       />

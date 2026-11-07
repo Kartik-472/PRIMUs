@@ -262,6 +262,8 @@ body {
   --chart-marker-text: #ffa028;
   --chart-second: #4fd1ff;
   --chart-volume: #56616c;
+  --chart-average: #ffa028;
+  --chart-tag-text: #000000;
 
   background: var(--term-bg);
   color: var(--color-slate-800);
@@ -315,6 +317,8 @@ body {
   --chart-marker-text: #ffa028;
   --chart-second: #4fd1ff;
   --chart-volume: #56616c;
+  --chart-average: #ffa028;
+  --chart-tag-text: #000000;
 }
 
 /* The latest point of a live chart: a ring that grows and fades, so a screen shows it is following the market. */
