@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { axisMoney, chartGeometry, chartSummary, niceStep, sparkPath, type ChartBox } from "./chart";
+import { axisMoney, chartGeometry, chartSummary, indexChartPoints, marketIndex, niceStep, sparkPath, type ChartBox } from "./chart";
 
 const box: ChartBox = { width: 400, height: 200, padLeft: 50, padRight: 10, padTop: 10, padBottom: 30 };
 
@@ -84,5 +84,41 @@ describe("axisMoney", () => {
     expect(axisMoney(1050, 50, 1200, fmt)).toBe("$10.50");
     expect(axisMoney(54_000_000, 2_000_000, 56_000_000, fmt)).toBe("$540k");
     expect(axisMoney(51_750_000, 50_000, 52_000_000, fmt)).toBe("$517.5k");
+  });
+});
+
+describe("marketIndex", () => {
+  const row = (company_id: string, kind: string, market_after: number) => ({ company_id, kind, market_after });
+
+  test("starts at 1,000 and averages each company's price over its starting price", () => {
+    const steps = [row("a", "START", 1000), row("b", "START", 2000), row("a", "CRISIS", 850), row("b", "CRISIS", 1700), row("a", "CLEARING", 1100), row("b", "CLEARING", 1800)];
+    expect(marketIndex(steps)).toEqual([
+      { level: 100_000, kind: "START" },
+      { level: 85_000, kind: "CRISIS" },
+      { level: 100_000, kind: "CLEARING" },
+    ]);
+  });
+
+  test("draws a step only once every company has it, and lets an appeal correct the latest price", () => {
+    const steps = [row("a", "START", 1000), row("b", "START", 1000), row("a", "CRISIS", 850), row("b", "CRISIS", 850), row("b", "APPEAL", 1050), row("a", "CLEARING", 900)];
+    expect(marketIndex(steps)).toEqual([
+      { level: 100_000, kind: "START" },
+      { level: 95_000, kind: "CRISIS" },
+    ]);
+  });
+
+  test("is empty before the starting prices", () => {
+    expect(marketIndex([])).toEqual([]);
+  });
+
+  test("labels the points for the chart", () => {
+    const pts = indexChartPoints([
+      { level: 100_000, kind: "START" },
+      { level: 85_000, kind: "CRISIS" },
+      { level: 90_000, kind: "CLEARING" },
+      { level: 91_000, kind: "CLEARING" },
+    ]);
+    expect(pts.map((p) => p.label)).toEqual(["Start", "Crisis", "Round 1", "Round 2"]);
+    expect(pts[1]!.marker).toBe("Crisis");
   });
 });

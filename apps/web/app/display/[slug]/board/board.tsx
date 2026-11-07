@@ -16,11 +16,12 @@ import { RefreshAt } from "@/lib/live/refresh-at";
 import { loadBoard, loadLiveLeaderboard } from "./data";
 import { BoardPages } from "./pages";
 import { LeaderboardPage } from "./leaderboard";
+import { ChartPage } from "./chart-page";
 
 export async function Board({ event, status, compact = false }: { event: DisplayEvent; status: EventStatus; compact?: boolean }) {
   if (!event.prices_started_at) return <Evening event={event} status={status} />;
 
-  const [{ companies, round }, leaderboard] = await Promise.all([loadBoard(event.id), event.leaderboard_frozen_at ? Promise.resolve(null) : loadLiveLeaderboard(event.id)]);
+  const [{ companies, round, trends, index }, leaderboard] = await Promise.all([loadBoard(event.id), event.leaderboard_frozen_at ? Promise.resolve(null) : loadLiveLeaderboard(event.id)]);
   const tiles = boardTiles(companies, round?.round_prices ?? [], event.market_closed_at !== null);
   if (tiles.length === 0) {
     return (
@@ -38,11 +39,19 @@ export async function Board({ event, status, compact = false }: { event: Display
         serverTime={status.server_time}
         highlightUntil={highlightUntil(round?.cleared_at)}
         compact={compact}
-        extra={leaderboard ? <LeaderboardPage rows={leaderboard} /> : null}
+        trends={trends}
+        extras={[
+          // The chart page once there is a price to chart; the leaderboard until the 03:30 freeze.
+          ...(tiles.some((t) => t.price !== null) ? [{ key: "chart", node: <ChartPage index={index} tiles={tiles} trends={trends} />, legend: CHART_LEGEND }] : []),
+          ...(leaderboard ? [{ key: "leaderboard", node: <LeaderboardPage rows={leaderboard} />, legend: LEADERBOARD_LEGEND }] : []),
+        ]}
       />
     </div>
   );
 }
+
+const CHART_LEGEND = "PRIMUS index: every company starts at 1,000. It moves at the crisis, the reveal and each clearing.";
+const LEADERBOARD_LEGEND = "The leaderboard: Round 1 + Round 2 + Round 3 points so far (Round 3 at current market prices). It freezes at 03:30.";
 
 async function Evening({ event, status }: { event: DisplayEvent; status: EventStatus }) {
   const sb = await supabaseServer();

@@ -7,6 +7,7 @@
 import { useSyncExternalStore, type ReactNode } from "react";
 import { useServerNow } from "@/lib/live/clock";
 import { bp, money } from "@/lib/format";
+import { Sparkline } from "@/components/ui/line-chart";
 import {
   MOVE_ARROWS,
   MOVE_TONE,
@@ -34,7 +35,8 @@ export function BoardPages({
   serverTime,
   highlightUntil,
   compact = false,
-  extra = null,
+  trends = {},
+  extras = [],
 }: {
   tiles: BoardTile[];
   /** The last cleared round's number (null before any round has cleared). */
@@ -46,36 +48,39 @@ export function BoardPages({
   highlightUntil: number | null;
   /** Less height for the tiles (a bulletin banner or the pause strip is shown): one step smaller type. */
   compact?: boolean;
-  /** A page shown after the last page of tiles (the leaderboard until 03:30). */
-  extra?: ReactNode;
+  /** Each company's price after every step (its trend line in the tile), by company id. */
+  trends?: Record<string, number[]>;
+  /** Pages shown after the last page of tiles (the chart page, the leaderboard until 03:30), each with its legend. */
+  extras?: { key: string; node: ReactNode; legend: string }[];
 }) {
   const live = useServerNow(500);
   const hydrated = useSyncExternalStore(noSubscription, () => true, () => false);
   const now = hydrated ? live : Date.parse(serverTime);
   const tilePages = pageCount(tiles.length);
-  const pages = tilePages + (extra ? 1 : 0);
+  const pages = tilePages + extras.length;
   const page = pageIndex(now, pages);
-  const onExtra = extra !== null && page === tilePages;
+  const extra = page >= tilePages ? (extras[page - tilePages] ?? null) : null;
+  const onExtra = extra !== null;
   const glow = highlightUntil !== null && now < highlightUntil;
   const pending = tiles.every((t) => t.price === null);
 
   return (
     <>
       {onExtra ? (
-        <div className="min-h-0 flex-1 px-6 py-2" data-testid="board-page-extra" data-page={page + 1}>
-          {extra}
+        <div className="min-h-0 flex-1 px-6 py-2" data-testid="board-page-extra" data-extra={extra.key} data-page={page + 1}>
+          {extra.node}
         </div>
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-5 grid-rows-5 gap-x-3 gap-y-1 px-6 py-2" data-testid="board-page-tiles" data-page={page + 1}>
           {pageOf(tiles, page).map((t) => (
-            <Tile key={t.id} tile={t} round={round} glow={glow} size={compact ? SIZES.compact : SIZES.normal} />
+            <Tile key={t.id} tile={t} trend={trends[t.id] ?? []} round={round} glow={glow} size={compact ? SIZES.compact : SIZES.normal} />
           ))}
         </div>
       )}
       <footer className="flex h-[44px] shrink-0 items-center justify-between gap-8 border-t-2 border-[var(--term-amber-dim)] px-8 text-[26px] text-slate-400">
         <p className="min-w-0 truncate" data-testid="board-legend">
-          {onExtra ? (
-            "The leaderboard: Round 1 + Round 2 + Round 3 points so far (Round 3 at current market prices). It freezes at 03:30."
+          {extra ? (
+            extra.legend
           ) : pending ? (
             "Starting prices are set when the PRD scores are revealed at 23:30."
           ) : (
@@ -108,6 +113,7 @@ const SIZES = {
     ticker: "text-[52px]",
     arrow: "text-[44px]",
     name: "text-[28px] leading-[1.2]",
+    spark: { width: 120, height: 30 },
     pending: "text-[30px]",
     // Sized for the monospace face of the terminal look (wider than the old sans): a 7-character price and change fit a tile.
     fit: { normal: { price: "text-[40px]", change: "text-[30px]" }, small: { price: "text-[40px]", change: "text-[26px]" }, smaller: { price: "text-[36px]", change: "text-[24px]" } },
@@ -117,13 +123,14 @@ const SIZES = {
     ticker: "text-[40px]",
     arrow: "text-[36px]",
     name: "text-[24px] leading-[1.15]",
+    spark: { width: 100, height: 24 },
     pending: "text-[26px]",
     fit: { normal: { price: "text-[34px]", change: "text-[26px]" }, small: { price: "text-[34px]", change: "text-[22px]" }, smaller: { price: "text-[30px]", change: "text-[20px]" } },
   },
-} satisfies Record<string, { pad: string; ticker: string; arrow: string; name: string; pending: string; fit: Record<PriceRowFit, { price: string; change: string }> }>;
+} satisfies Record<string, { pad: string; ticker: string; arrow: string; name: string; spark: { width: number; height: number }; pending: string; fit: Record<PriceRowFit, { price: string; change: string }> }>;
 type Size = (typeof SIZES)[keyof typeof SIZES];
 
-function Tile({ tile: t, round, glow, size }: { tile: BoardTile; round: number | null; glow: boolean; size: Size }) {
+function Tile({ tile: t, trend, round, glow, size }: { tile: BoardTile; trend: number[]; round: number | null; glow: boolean; size: Size }) {
   const tone = toneOf(t.changeBp);
   const lit = glow && t.move !== null ? GLOW[t.move] : "";
   return (
@@ -151,6 +158,8 @@ function Tile({ tile: t, round, glow, size }: { tile: BoardTile; round: number |
         <p className={`min-w-0 flex-1 truncate text-slate-400 uppercase ${size.name}`} data-testid="tile-name">
           {t.name}
         </p>
+        {/* The price after every step so far: the tile's own live chart, redrawn at every clearing. */}
+        {trend.length > 1 ? <Sparkline values={trend} label={`${t.ticker} price trend`} width={size.spark.width} height={size.spark.height} strokeWidth={2.5} /> : null}
         {t.closing ? (
           <span className="shrink-0 text-[24px] font-bold tracking-wide text-amber-300 uppercase" data-testid="tile-closing">
             Close

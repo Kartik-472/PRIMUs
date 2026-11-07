@@ -5,6 +5,8 @@
 
 import { supabaseServer } from "@/lib/supabase/server";
 import type { BoardCompany, BoardMoveRow } from "@/lib/display/board";
+import { fetchAll } from "@/lib/fetch-all";
+import { marketIndex, type IndexPoint } from "@/lib/chart";
 
 export interface BoardRound {
   number: number;
@@ -16,11 +18,15 @@ export interface BoardData {
   companies: BoardCompany[];
   /** The most recently cleared round (null before any round has cleared). */
   round: BoardRound | null;
+  /** Each company's market price after every step so far (its trend line), by company id. */
+  trends: Record<string, number[]>;
+  /** The equal-weight market index after every market-wide step. */
+  index: IndexPoint[];
 }
 
 export async function loadBoard(eventId: string): Promise<BoardData> {
   const sb = await supabaseServer();
-  const [companies, round] = await Promise.all([
+  const [companies, round, steps] = await Promise.all([
     sb.from("companies").select("id, ticker, name, start_price, market_price, closing_price").eq("event_id", eventId).not("ticker", "is", null),
     sb
       .from("rounds")
@@ -31,9 +37,19 @@ export async function loadBoard(eventId: string): Promise<BoardData> {
       .order("number", { ascending: false })
       .limit(1)
       .maybeSingle<BoardRound>(),
+    fetchAll<{ company_id: string; kind: string; market_after: number }>((from, to) =>
+      sb.from("round_prices").select("company_id, kind, market_after").eq("event_id", eventId).order("id").range(from, to),
+    ),
   ]);
   for (const r of [companies, round]) if (r.error) throw new Error(`Could not read the board: ${r.error.message}`);
-  return { companies: (companies.data ?? []) as BoardCompany[], round: round.data ?? null };
+  const trends: Record<string, number[]> = {};
+  for (const s of steps) {
+    const list = (trends[s.company_id] ??= []);
+    // An appeal corrects the latest price rather than adding a step, as in the market index.
+    if (s.kind === "APPEAL" && list.length) list[list.length - 1] = Number(s.market_after);
+    else list.push(Number(s.market_after));
+  }
+  return { companies: (companies.data ?? []) as BoardCompany[], round: round.data ?? null, trends, index: marketIndex(steps) };
 }
 
 export interface LiveRow {

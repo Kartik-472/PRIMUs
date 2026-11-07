@@ -8,6 +8,7 @@ import { bp, money } from "@/lib/format";
 import { Badge, Notice, Panel, Table, Td } from "@/components/ui/ui";
 import { Sparkline } from "@/components/ui/line-chart";
 import { MarketTabs } from "./tabs";
+import { MarketMonitor } from "./monitor";
 
 export const metadata: Metadata = { title: "Market" };
 
@@ -34,6 +35,7 @@ export default async function MarketPage() {
   return (
     <div className="space-y-6">
       <MarketTabs current="PRICES" solutions={phaseReached(status.phase, "MARKET_BLIND")} />
+      <MarketMonitor index={list.index} lines={lines} status={status} />
       <Panel title={`Companies (${lines.length})`}>
         <Table
           head={["Ticker", "Company", "Starting price", "Market price", "Score-based price", ...(closed ? ["Closing price"] : []), list.lastRound ? `Round ${list.lastRound.number}` : "Last round", "Trend"]}

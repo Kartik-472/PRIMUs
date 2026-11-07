@@ -117,3 +117,78 @@ export function chartSummary(points: readonly ChartPoint[], fmt: (cents: number)
   const vals = points.map((p) => p.value);
   return `${first.label} ${fmt(first.value)}, ${last.label} ${fmt(last.value)}; lowest ${fmt(Math.min(...vals))}, highest ${fmt(Math.max(...vals))}, ${points.length} steps.`;
 }
+
+// ───────────────────────────── Market index ─────────────────────────────
+
+/** One price step of a company, as round_prices stores it (an APPEAL step moves one company only). */
+export interface IndexStep {
+  company_id: string;
+  kind: string;
+  market_after: number;
+}
+
+/** The base of the market index: every company counts as 1,000 points at its starting price. */
+export const INDEX_BASE = 1_000;
+
+/** A point of the market index: its level in hundredths of a point and the step it follows. */
+export interface IndexPoint {
+  level: number;
+  kind: string;
+}
+
+/**
+ * The equal-weight market index after every market-wide step (start, crisis, reveal, each clearing, close): the
+ * average over the companies of price ÷ starting price × 1,000, in hundredths of a point, so it starts at 1,000.00.
+ * Steps are read in the order given (round_prices by id). Every company gets a row at each market-wide step; an
+ * appeal step corrects its company's latest price instead of adding a step. A point is drawn only once every company
+ * has its row for that step. Companies without a starting price are left out.
+ */
+export function marketIndex(steps: readonly IndexStep[]): IndexPoint[] {
+  const start = new Map<string, number>();
+  const after = new Map<string, number[]>();
+  const kinds: string[] = [];
+  let first: string | null = null;
+  for (const s of steps) {
+    const p = Number(s.market_after);
+    if (s.kind === "START") {
+      if (p > 0) start.set(s.company_id, p);
+      first ??= s.company_id;
+      continue;
+    }
+    const list = after.get(s.company_id) ?? [];
+    if (s.kind === "APPEAL") {
+      if (list.length) list[list.length - 1] = p;
+    } else {
+      list.push(p);
+      if (s.company_id === first) kinds.push(s.kind);
+    }
+    after.set(s.company_id, list);
+  }
+  if (start.size === 0) return [];
+  const ids = [...start.keys()];
+  const full = Math.min(kinds.length, ...ids.map((id) => after.get(id)?.length ?? 0));
+  const series: IndexPoint[] = [{ level: INDEX_BASE * 100, kind: "START" }];
+  for (let k = 0; k < full; k++) {
+    let sum = 0;
+    for (const id of ids) sum += (after.get(id)![k]! / start.get(id)!) * INDEX_BASE * 100;
+    series.push({ level: Math.round(sum / ids.length), kind: kinds[k]! });
+  }
+  return series;
+}
+
+const INDEX_MARKERS: Record<string, string> = { CRISIS: "Crisis", REVEAL: "Reveal", CLOSE: "Close" };
+
+/** The index as chart points: "Start", "Crisis", "Score reveal", "Round 1"…, "Close", with tags on the big steps. */
+export function indexChartPoints(index: readonly IndexPoint[]): ChartPoint[] {
+  let round = 0;
+  return index.map((p) => {
+    const label =
+      p.kind === "START" ? "Start" : p.kind === "CRISIS" ? "Crisis" : p.kind === "REVEAL" ? "Score reveal" : p.kind === "CLOSE" ? "Close" : `Round ${++round}`;
+    return { label, value: p.level, marker: INDEX_MARKERS[p.kind] ?? null };
+  });
+}
+
+/** An index level (hundredths of a point) as "1,034.27". */
+export function indexText(level: number): string {
+  return (level / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}

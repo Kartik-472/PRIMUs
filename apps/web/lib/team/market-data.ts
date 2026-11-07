@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PhaseCode, SubmissionType } from "@msim/engine";
 import { supabaseServer } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetch-all";
+import { marketIndex, type IndexPoint } from "@/lib/chart";
 import { publicTypes, type ClearingRow, type ListedCompany, type PriceKind, type PriceRow } from "./market";
 import type { ScoreRow } from "./round-data";
 
@@ -33,6 +34,8 @@ export interface MarketList {
   lastRound: { number: number; rows: ClearingRow[] } | null;
   /** Each company's market price after every step so far, for the trend lines. */
   trends: Record<string, number[]>;
+  /** The equal-weight market index after every market-wide step (lib/chart.ts marketIndex). */
+  index: IndexPoint[];
 }
 
 /** Every company, the last cleared round's prices (every company gets a row each round) and the trend lines. */
@@ -49,15 +52,16 @@ export async function loadMarketList(eventId: string): Promise<MarketList> {
       .limit(1)
       .maybeSingle<{ id: string; number: number }>()
       .then((r) => must(r, "the rounds")),
-    fetchAll<{ company_id: string; market_after: number }>((from, to) =>
-      sb.from("round_prices").select("company_id, market_after").eq("event_id", eventId).order("id").range(from, to),
+    fetchAll<{ company_id: string; kind: string; market_after: number }>((from, to) =>
+      sb.from("round_prices").select("company_id, kind, market_after").eq("event_id", eventId).order("id").range(from, to),
     ),
   ]);
   const trends: Record<string, number[]> = {};
   for (const s of steps) (trends[s.company_id] ??= []).push(Number(s.market_after));
-  if (!round) return { companies, lastRound: null, trends };
+  const index = marketIndex(steps);
+  if (!round) return { companies, lastRound: null, trends, index };
   const rows = must(await sb.from("round_prices").select("company_id, market_before, market_after").eq("round_id", round.id).eq("kind", "CLEARING"), "the round's prices") as ClearingRow[];
-  return { companies, lastRound: { number: round.number, rows }, trends };
+  return { companies, lastRound: { number: round.number, rows }, trends, index };
 }
 
 export interface PublicSubmission {
