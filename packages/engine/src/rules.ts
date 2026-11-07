@@ -14,7 +14,11 @@ export const RULES = {
   REVEAL_BP_PER_POINT: 50,
 
   // Round 3.
-  START_CASH: 10_000_000, // $100,000 per team
+  // Round 3 cash depends on the Round 2 evaluation: every team gets START_CASH when the event is seeded (so it can trade
+  // in the two blind rounds), and at the 02:45 reveal R2_GRANT_PER_POINT for each point of its own crisis-solution
+  // score. Score 50 → $100,000 in all; 100 → $150,000; 0 → $50,000. Returns are measured on the total received.
+  START_CASH: 5_000_000, // $50,000 per team at the start
+  R2_GRANT_PER_POINT: 100_000, // $1,000 per Round 2 point, paid at the reveal
   HOLD_LIMIT: 5_000, // shares of any one company, owned plus pending buys
   RESERVE_PCT: 110, // a buy reserves qty × price × 1.10
   // Clearing: 1% per 1,000 net shares, capped at ±10%: new = old × (100,000 + clamp(net, −10,000, 10,000)) ÷ 100,000.

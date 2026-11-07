@@ -18,6 +18,8 @@ import {
   flagReciprocalBuying,
   injectionPenalty,
   rankResults,
+  fundedCash,
+  round2Grant,
   returnBp,
   rootSeed,
   round3Points,
@@ -282,8 +284,11 @@ describe("a PRIMUS night", () => {
     expect(await n.call(n.team(alpha), "place_order", own, "BUY", 10)).toMatchObject({ ok: false, code: "OWN_COMPANY" });
     expect(await n.call(n.team(alpha), "place_order", resc, "BUY", 10)).toMatchObject({ ok: false, code: "RESCUED_COMPANY" });
     expect(await n.call(n.team(alpha), "place_order", other[0], "SELL", 1)).toMatchObject({ ok: false, code: "NOT_ENOUGH_SHARES" });
-    await n.ok(n.team(alpha), "place_order", other[0], "BUY", 4000);
-    expect(await n.call(n.team(alpha), "place_order", other[0], "BUY", 1001)).toMatchObject({ ok: false, code: "HOLD_LIMIT" });
+    // Before the 02:45 reveal every team trades with its $50,000 start only.
+    expect(Number((await n.one("select cash_cents from teams where id = $1", [n.teamId(alpha)])).cash_cents)).toBe(5_000_000);
+    await n.ok(n.team(alpha), "place_order", other[0], "BUY", 2000);
+    await n.ok(n.team(alpha), "place_order", other[0], "BUY", 1000);
+    expect(await n.call(n.team(alpha), "place_order", other[0], "BUY", 2001)).toMatchObject({ ok: false, code: "HOLD_LIMIT" });
     const max = await as(db.pool, n.team(alpha), async (c) => (await c.query("select public.max_quantity($1, 'BUY') as m", [other[1]])).rows[0].m);
     expect(await n.call(n.team(alpha), "place_order", other[1], "BUY", max + 1)).toMatchObject({ ok: false, code: "INSUFFICIENT_CASH" });
     await n.ok(n.team(alpha), "place_order", other[1], "BUY", max);
@@ -305,7 +310,17 @@ describe("a PRIMUS night", () => {
     await n.ok(n.team(alpha), "place_order", held.company_id, "SELL", 500);
     await n.clearRound(2);
     const before = await n.q("select c.id, c.market_price, c.score_price, s.final_score from companies c join scores s on s.company_id = c.id and s.type = 'SOLUTION' where c.event_id = $1", [n.eventId]);
+    const cashBefore = await n.q("select t.id, t.cash_cents, coalesce(s.final_score, 0) as r2 from teams t left join scores s on s.team_id = t.id and s.type = 'SOLUTION' where t.event_id = $1", [n.eventId]);
     await n.advanceTo("MARKET");
+    // Round 3 money depends on Round 2: at the reveal every team receives $1,000 per point of its own solution score,
+    // paid by the exchange (the books still balance), once.
+    for (const t of cashBefore) {
+      const now = await n.one("select cash_cents from teams where id = $1", [t.id]);
+      expect(Number(now.cash_cents)).toBe(Number(t.cash_cents) + round2Grant(t.r2));
+    }
+    expect((await n.one("select app.funded_cents($1) as f", [n.teamId(alpha)])).f).toBe(String(fundedCash(71)));
+    expect((await n.one("select app.grant_round2_cash($1) as g", [n.eventId])).g).toBe(0);
+    await n.checkInvariants();
     const after = await n.prices();
     for (const b of before) expect(after[b.id]).toBe(applyReveal(b.market_price, b.final_score));
     // Acceptance 8: Beta's rescue of MLBT scored 84 → score-based price $12.73.
@@ -388,12 +403,13 @@ describe("a PRIMUS night", () => {
       for (const [cid, p] of Object.entries(b.positions)) portfolio += p.qty * closing[cid]!;
       const r1 = scores.find((s) => s.type === "PRD" && cos.find((c) => c.id === s.company_id)!.founder_team_id === teamId)!.final_score;
       const r2 = scores.find((s) => s.type === "SOLUTION" && s.team_id === teamId)!.final_score;
-      return { teamId, r1, r2, r3: round3Points(portfolio), portfolio, eligible: true };
+      // Round 3 is measured on everything the team was given: the start plus $1,000 per Round 2 point.
+      return { teamId, r1, r2, r3: round3Points(portfolio, fundedCash(r2)), portfolio, funded: fundedCash(r2), eligible: true };
     });
     for (const e of entries) {
       const got = results.find((r) => r.team_id === e.teamId)!;
       expect([got.r1_points, got.r2_points, got.r3_points, Number(got.portfolio_cents), Number(got.return_bp), got.total]).toEqual([
-        e.r1, e.r2, e.r3, e.portfolio, returnBp(e.portfolio), e.r1 + e.r2 + e.r3,
+        e.r1, e.r2, e.r3, e.portfolio, returnBp(e.portfolio, e.funded), e.r1 + e.r2 + e.r3,
       ]);
     }
     const ranked = rankResults(entries);

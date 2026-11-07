@@ -58,8 +58,8 @@ describe("seed plan", () => {
     expect(plan.teams.find((t) => t.code === "T007")!.email).toBe("t007@teams.example.org");
   });
 
-  test("every team starts Round 3 with $100,000", () => {
-    expect(buildSeedPlan(base).starting_cash_cents).toBe(10_000_000);
+  test("every team starts Round 3 with $50,000 (the Round 2 grant comes at 02:45)", () => {
+    expect(buildSeedPlan(base).starting_cash_cents).toBe(5_000_000);
   });
 
   test("the schedule: 13 phases and 9 rounds with durations, the twist and freeze offsets; no clock times", () => {

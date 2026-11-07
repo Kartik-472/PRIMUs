@@ -43,15 +43,17 @@ describe("positionLines", () => {
 describe("portfolioTotals", () => {
   it("value, return, gain and the Round 3 points it would give", () => {
     const lines = positionLines([{ company_id: AQS, qty: 2000, cost_cents: 2_000_000 }], companies, false);
-    const t = portfolioTotals(8_000_000, lines);
+    const t = portfolioTotals(8_000_000, lines, 10_000_000);
     // 80,000 + 2,000 × 13.80 = 107,600: +7.6% → 50 + 2.5 × 7.6 = 69
     expect(t).toEqual({ cash: 8_000_000, sharesValue: 2_760_000, value: 10_760_000, start: 10_000_000, gain: 760_000, returnBp: 760, points: 69, unrealised: 760_000, unpriced: 0 });
   });
 
   it("points stay between 0 and 100; unpriced lines are counted apart", () => {
     expect(portfolioTotals(0, []).points).toBe(0);
+    // Measured on what the team was given: $50,000 before the Round 2 grant.
+    expect(portfolioTotals(5_000_000, []).points).toBe(50);
     expect(portfolioTotals(40_000_000, []).points).toBe(100);
     const lines = positionLines([{ company_id: NEW, qty: 10, cost_cents: 10_000 }], companies, false);
-    expect(portfolioTotals(10_000_000, lines)).toMatchObject({ value: 10_000_000, points: 50, unpriced: 1 });
+    expect(portfolioTotals(10_000_000, lines, 10_000_000)).toMatchObject({ value: 10_000_000, points: 50, unpriced: 1 });
   });
 });

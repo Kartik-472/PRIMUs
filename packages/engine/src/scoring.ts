@@ -16,6 +16,16 @@ export function portfolioValue(cash: number, holdings: Readonly<Record<string, n
   return v;
 }
 
+/** Everything a team is given to trade with: the starting cash plus the Round 2 grant (once its score is revealed). */
+export function fundedCash(r2Score: number | null): number {
+  return RULES.START_CASH + (r2Score === null ? 0 : RULES.R2_GRANT_PER_POINT * r2Score);
+}
+
+/** The Round 2 grant alone: $1,000 per point of the team's own crisis-solution score. */
+export function round2Grant(r2Score: number): number {
+  return RULES.R2_GRANT_PER_POINT * r2Score;
+}
+
 /** Return in basis points (+1078 = +10.78%), rounded half-up; for display and the 0.01% award comparisons. */
 export function returnBp(value: number, start: number = RULES.START_CASH): number {
   return divRoundHalfUp(BigInt(value - start) * 10_000n, BigInt(start));
@@ -81,7 +91,8 @@ export function liveTotal(i: {
 }): { r1: number; r2: number; r3: number; total: number } {
   const r1 = i.r1 ?? 0;
   const r2 = i.r2 ?? 0;
-  const r3 = i.portfolio === null ? 0 : round3Points(i.portfolio);
+  // Measured on everything the team was given: the start, plus the Round 2 grant once its score is revealed.
+  const r3 = i.portfolio === null ? 0 : round3Points(i.portfolio, fundedCash(i.r2));
   return { r1, r2, r3, total: r1 + r2 + r3 };
 }
 

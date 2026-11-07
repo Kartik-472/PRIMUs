@@ -15,7 +15,9 @@ import {
   formatCents,
   injectionPenalty,
   isJudgeable,
+  fundedCash,
   liveTotal,
+  round2Grant,
   maxQuantity,
   medianScore,
   mulRate,
@@ -323,11 +325,17 @@ describe("clearRound", () => {
 
 describe("scoring and ranking", () => {
   test("return in basis points and Round 3 points", () => {
-    expect(returnBp(11_078_000)).toBe(1078);
-    expect(returnBp(9_000_000)).toBe(-1000);
-    expect(round3Points(10_000_000 + 2)).toBe(50);
-    expect(round3Points(10_020_000)).toBe(51); // 50.5 → 51
-    expect(round3Points(8_020_000)).toBe(1); // 0.5 → 1
+    expect(returnBp(11_078_000, 10_000_000)).toBe(1078);
+    expect(returnBp(9_000_000, 10_000_000)).toBe(-1000);
+    expect(round3Points(10_000_000 + 2, 10_000_000)).toBe(50);
+    expect(round3Points(10_020_000, 10_000_000)).toBe(51); // 50.5 → 51
+    expect(round3Points(8_020_000, 10_000_000)).toBe(1); // 0.5 → 1
+    // Round 3 money depends on Round 2: $50,000 + $1,000 per point.
+    expect(fundedCash(null)).toBe(5_000_000);
+    expect(fundedCash(0)).toBe(5_000_000);
+    expect(fundedCash(50)).toBe(10_000_000);
+    expect(fundedCash(100)).toBe(15_000_000);
+    expect(round2Grant(71)).toBe(7_100_000);
   });
   const e = (teamId: string, r1: number, r2: number, r3: number, portfolio = 10_000_000, eligible = true): ResultEntry => ({
     teamId, r1, r2, r3, portfolio, eligible,
@@ -346,7 +354,8 @@ describe("scoring and ranking", () => {
   });
   test("live total so far", () => {
     expect(liveTotal({ r1: null, r2: null, portfolio: null })).toEqual({ r1: 0, r2: 0, r3: 0, total: 0 });
-    expect(liveTotal({ r1: 78, r2: null, portfolio: 11_078_000 })).toEqual({ r1: 78, r2: 0, r3: 77, total: 155 });
+    expect(liveTotal({ r1: 78, r2: null, portfolio: 5_539_000 })).toEqual({ r1: 78, r2: 0, r3: 77, total: 155 }); // +10.78% on $50,000
+    expect(liveTotal({ r1: 78, r2: 50, portfolio: 11_078_000 })).toEqual({ r1: 78, r2: 50, r3: 77, total: 205 }); // on $100,000
   });
   test("teams see the live board until it freezes, then nothing until AWARDS; staff always", () => {
     expect(canViewRankings("TEAM", "MARKET", false)).toBe(true);

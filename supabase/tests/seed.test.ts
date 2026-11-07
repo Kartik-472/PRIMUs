@@ -71,10 +71,10 @@ describe("seed_event: the live event", () => {
     ]);
   });
 
-  test("every team starts with $100,000, from the exchange, and the ledger balances", async () => {
+  test("every team starts with $50,000 (the Round 2 grant comes at 02:45), from the exchange, and the ledger balances", async () => {
     expect((await q("select min(cash_cents)::bigint as lo, max(cash_cents)::bigint as hi from teams where event_id = $1"))[0]).toEqual({
-      lo: "10000000",
-      hi: "10000000",
+      lo: "5000000",
+      hi: "5000000",
     });
     const { rows } = await db.pool.query(`
       select t.code from teams t left join ledger_entries l on l.team_id = t.id
@@ -88,7 +88,7 @@ describe("seed_event: the live event", () => {
   test("a team can log in and read its own row", async () => {
     const t = (await q("select a.user_id, t.code from accounts a join teams t on t.id = a.team_id where t.event_id = $1 and t.code = 'T007'"))[0];
     const rows = await rowsAs<{ code: string; cash_cents: string }>(db.pool, user(t.user_id), "select code, cash_cents from teams");
-    expect(rows).toEqual([{ code: "T007", cash_cents: "10000000" }]);
+    expect(rows).toEqual([{ code: "T007", cash_cents: "5000000" }]);
   });
 
   test("the live event cannot be purged once it has started", async () => {

@@ -8,24 +8,28 @@ import { portfolioTotals, positionLines } from "@/lib/team/portfolio";
 import { bp, clock, count, money, signedMoney } from "@/lib/format";
 import { Notice, Panel, Stat, Table, Td } from "@/components/ui/ui";
 import { LineChart } from "@/components/ui/line-chart";
-import { loadPortfolioSeries } from "@/lib/team/portfolio-history-data";
+import { loadFunded, loadPortfolioSeries } from "@/lib/team/portfolio-history-data";
 import { TradingNotYet } from "../not-yet";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
-// Portfolio: the team's value (cash + shares at market prices, or closing prices after the 04:30 close), its return on the
-// $100,000 start and the Round 3 points that return would give; a chart of the value after every price step; and one
+// Portfolio: the team's value (cash + shares at market prices, or closing prices after the 04:30 close), its return on
+// everything it was given ($50,000 plus $1,000 per Round 2 point at 02:45) and the Round 3 points that return would give; a chart of the value after every price step; and one
 // line per company held with its average cost, price, value and profit or loss, and how many more shares it may buy.
 // Every price change broadcasts, so the page re-reads itself after each clearing, the reveal and the close.
 export default async function PortfolioPage() {
   const ctx = await loadTeamContext();
   const notYet = TradingNotYet({ phase: ctx.status.phase, title: "Portfolio" });
   if (notYet) return notYet;
-  const [data, series] = await Promise.all([loadTradeData(ctx, { orders: "pending" }), loadPortfolioSeries(ctx.event.id, ctx.team.id)]);
+  const [data, series, funded] = await Promise.all([
+    loadTradeData(ctx, { orders: "pending" }),
+    loadPortfolioSeries(ctx.event.id, ctx.team.id),
+    loadFunded(ctx.team.id),
+  ]);
   const closedAt = ctx.event.market_closed_at;
   const closed = closedAt !== null;
   const lines = positionLines(data.holdings, data.companies, closed);
-  const totals = portfolioTotals(ctx.team.cash, lines);
+  const totals = portfolioTotals(ctx.team.cash, lines, funded);
   const tctx = traderContext(ctx, data);
   const cash = cashSummary(tctx);
   const priceWord = closed ? "closing" : "market";

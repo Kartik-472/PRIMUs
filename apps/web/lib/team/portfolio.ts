@@ -65,11 +65,11 @@ export interface PortfolioTotals {
   unpriced: number;
 }
 
-export function portfolioTotals(cash: number, lines: readonly PositionLine[]): PortfolioTotals {
+/** `start` is everything the team was given to trade with (app.funded_cents: the starting cash plus its Round 2 grant). */
+export function portfolioTotals(cash: number, lines: readonly PositionLine[], start: number = RULES.START_CASH): PortfolioTotals {
   const priced = lines.filter((l) => l.value !== null);
   const sharesValue = priced.reduce((s, l) => s + l.value!, 0);
   const value = cash + sharesValue;
-  const start = RULES.START_CASH;
   return {
     cash,
     sharesValue,

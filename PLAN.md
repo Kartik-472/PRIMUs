@@ -324,3 +324,10 @@ All 13 in the brief were answered "defaults are fine" on 6 November. None open.
 - Squad or team chat
 - A printed rules sheet generated from the brief
 - Downloadable portfolio history after the event
+
+## 7c. Change after launch (7 November)
+
+**Round 3 money depends on Round 2.** Every team is seeded with $50,000 so it can trade in the two blind rounds; at the
+02:45 reveal (when Round 2 scores become public) each team receives $1,000 per point of its own crisis-solution score,
+as a START_CASH ledger entry paid by the exchange. Returns and Round 3 points are measured on everything a team received
+(`app.funded_cents`, engine `fundedCash`). Migration `20261107000016_round2_cash.sql`.

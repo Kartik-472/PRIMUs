@@ -24,3 +24,11 @@ export async function loadPortfolioSeries(eventId: string, teamId: string): Prom
     steps.map((s) => ({ at: s.created_at, kind: s.kind, roundNumber: s.round_id ? (numbers.get(s.round_id) ?? null) : null, companyId: s.company_id, price: Number(s.market_after) })),
   );
 }
+
+/** Everything the team was given to trade with: its START_CASH entries ($50,000, plus the Round 2 grant from 02:45). */
+export async function loadFunded(teamId: string): Promise<number> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.from("ledger_entries").select("cash_delta_cents").eq("team_id", teamId).eq("kind", "START_CASH");
+  if (error) throw new Error(`Could not read the starting cash: ${error.message}`);
+  return (data ?? []).reduce((s, r) => s + Number(r.cash_delta_cents), 0);
+}

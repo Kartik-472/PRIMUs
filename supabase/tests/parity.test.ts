@@ -335,7 +335,7 @@ describe("judging and scoring", () => {
       cases,
     );
     cases.forEach((c, i) =>
-      expect(sql[i]!.map(Number), JSON.stringify(c)).toEqual([returnBp(c.value), round3Points(c.value), riseBp(c.post, c.close)]),
+      expect(sql[i]!.map(Number), JSON.stringify(c)).toEqual([returnBp(c.value, 10_000_000), round3Points(c.value, 10_000_000), riseBp(c.post, c.close)]),
     );
   });
 });

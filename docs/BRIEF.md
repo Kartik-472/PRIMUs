@@ -113,7 +113,9 @@ phase only advances when its work is done (for example, REVEAL_1 waits until eve
   another team rescued its company.
 
 ### Round 3: Invest (02:15–04:30)
-- Every team starts Round 3 with **$100,000** cash and no shares.
+- Round 3 money depends on Round 2 (organisers' decision, 7 Nov): every team starts trading with **$50,000** cash and no
+  shares, and at the 02:45 reveal receives **$1,000 per point** of its own crisis-solution score (score 50 → $100,000 in
+  all; 100 → $150,000; 0 → $50,000).
 - A team may buy and sell shares of any company **except the one it built and the one it rescued**.
 - **Buy and sell only:** no short selling; a team can sell only shares it owns.
 - **At most 5,000 shares** of any one company per team (counting shares owned plus pending buys).
@@ -132,7 +134,8 @@ phase only advances when its work is done (for example, REVEAL_1 waits until eve
   the clearing prices of rounds 8 and 9. Example: rounds 8 and 9 at $13.60 and $13.80 → $13.70; score-based price
   $12.73 → closing price $13.22.
 - **Portfolio value** = cash + shares × closing prices.
-- **Return (%)** = (portfolio value − $100,000) ÷ $100,000 × 100.
+- **Return (%)** = (portfolio value − money received) ÷ money received × 100, where money received = $50,000 + the
+  Round 2 grant.
 - **Round 3 points** = 50 + 2.5 × return, kept between 0 and 100, rounded half-up to a whole point. A 20% gain → 100;
   break even → 50; a 20% loss → 0.
 

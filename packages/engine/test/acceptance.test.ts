@@ -105,7 +105,7 @@ describe("7. Round 3 points", () => {
     [8_000_000, 0],
     [7_500_000, 0],
     [12_500_000, 100],
-  ])("portfolio %i cents → %i points", (v, p) => expect(round3Points(v)).toBe(p));
+  ])("portfolio %i cents → %i points (a team funded $100,000, i.e. Round 2 score 50)", (v, p) => expect(round3Points(v, 10_000_000)).toBe(p));
 });
 
 describe("8. Team Alpha", () => {
@@ -117,10 +117,10 @@ describe("8. Team Alpha", () => {
     const scoreBased = scorePrice(start, 84); // Team Beta's rescue of MLBT
     expect(scoreBased).toBe(1273);
     const portfolio = 11_078_000; // a 10.78% return
-    expect(returnBp(portfolio)).toBe(1078);
+    expect(returnBp(portfolio, 10_000_000)).toBe(1078); // the brief's example: measured on $100,000
     const r1 = finalScore(78).final;
     const r2 = finalScore(71).final; // Team Alpha's own rescue
-    const r3 = round3Points(portfolio);
+    const r3 = round3Points(portfolio, 10_000_000);
     expect([r1, r2, r3]).toEqual([78, 71, 77]);
     expect(r1 + r2 + r3).toBe(226);
     const close = closingPrice(1370, scoreBased);

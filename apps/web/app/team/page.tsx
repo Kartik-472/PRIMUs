@@ -97,7 +97,7 @@ export default async function TeamHome() {
         </Panel>
 
         <Panel title="Cash">
-          <Stat label="Cash" value={<span data-testid="home-cash">{money(team.cash)}</span>} hint={phaseReached(status.phase, "MARKET_BLIND") ? undefined : "Every team starts trading with $100,000."} />
+          <Stat label="Cash" value={<span data-testid="home-cash">{money(team.cash)}</span>} hint={phaseReached(status.phase, "MARKET_BLIND") ? undefined : "Every team starts trading with $50,000, plus $1,000 per Round 2 point at 02:45."} />
           {phaseReached(status.phase, "MARKET_BLIND") ? (
             <Link href="/team/trade/positions" className={`mt-3 inline-block ${buttonClass.secondary}`}>
               Your portfolio

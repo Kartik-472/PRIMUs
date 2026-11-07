@@ -2,6 +2,7 @@
 // staff, the night's schedule, the content decks and the twist.
 
 import {
+  RULES,
   parseCsvObjects,
   buildSchedule,
   teamCode,
@@ -14,7 +15,7 @@ import {
 import { derivePassword } from "./credentials";
 
 /** Every team starts Round 3 with $100,000 of virtual cash. */
-export const STARTING_CASH_CENTS = 10_000_000;
+export const STARTING_CASH_CENTS = RULES.START_CASH; // $50,000; the Round 2 grant comes at 02:45
 export const LIVE_TEAMS = 150;
 
 export interface MemberRow {
