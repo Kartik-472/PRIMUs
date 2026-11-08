@@ -177,6 +177,8 @@ export function clearRound(
   prices: Readonly<Record<string, number>>,
   orders: readonly ClearingOrder[],
   traders: Readonly<Record<string, TraderBook>>,
+  /** New prices from the market model (marketRound); without it, the old rule (net ÷ 1,000 %, capped at ±10%). */
+  moved?: (companyId: string, oldPrice: number, net: number) => number,
 ): ClearingResult {
   const companies: Record<string, CompanyClearing> = {};
   for (const [companyId, oldPrice] of Object.entries(prices)) {
@@ -193,7 +195,7 @@ export function clearRound(
   for (const [companyId, c] of Object.entries(companies)) {
     c.net = c.buy - c.sell;
     c.cappedNet = cappedNet(c.net);
-    c.newPrice = clearingPrice(c.oldPrice, c.net);
+    c.newPrice = moved ? moved(companyId, c.oldPrice, c.net) : clearingPrice(c.oldPrice, c.net);
     newPrices[companyId] = c.newPrice;
     exchangeCashDelta += mul(c.net, c.newPrice);
   }

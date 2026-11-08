@@ -8,6 +8,7 @@ import type pg from "pg";
 import {
   RUBRICS,
   clearRound,
+  marketRound,
   sha256Hex,
   stripInjections,
   type ClearingOrder,
@@ -216,6 +217,30 @@ export class Night {
     return books;
   }
 
+  /** The engine's price function for round n, as the database will apply it (undefined: the original rule). */
+  async marketModel(n: number, roundId: string) {
+    const ev = await this.one("select market_model from events where id = $1", [this.eventId]);
+    if (ev.market_model !== "REALISTIC") return undefined;
+    const seed = (await this.one("select app.ensure_market_seed($1) as s", [this.eventId])).s as string;
+    const rows = await this.q(
+      `select c.id, coalesce(c.crisis_card_id::text, 'none') as sector, c.market_price, coalesce(c.score_price, c.market_price) as score,
+              coalesce((select rp.move_ppm from round_prices rp join rounds r on r.id = rp.round_id
+                         where rp.company_id = c.id and rp.kind = 'CLEARING' and r.number = $2 - 1), 0) as last,
+              coalesce((select sum(b.shock_bp) from bulletins b
+                         where b.event_id = c.event_id and b.release_round = $2 and b.published_at is null
+                           and (b.shock_scope = 'MARKET' or b.shock_target in (c.id, c.crisis_card_id))), 0)::int as news
+         from companies c where c.event_id = $1 and c.market_price is not null`,
+      [this.eventId, n],
+    );
+    void roundId;
+    const net: Record<string, number> = {};
+    const companies = rows.map((r) => ({ id: r.id, sector: r.sector, oldPrice: r.market_price, scorePrice: r.score, lastMovePpm: r.last, newsBp: r.news }));
+    return (companyId: string, _old: number, n2: number) => {
+      net[companyId] = n2;
+      return marketRound(seed, n, companies.filter((c) => c.id === companyId), net)[companyId]!.newPrice;
+    };
+  }
+
   /** Closes and clears round n through tick(), and checks the result against the engine's clearRound. */
   async clearRound(n: number) {
     const round = await this.one("select * from rounds where event_id = $1 and number = $2", [this.eventId, n]);
@@ -224,7 +249,7 @@ export class Night {
     const orders = (
       await this.q("select id, team_id, company_id, type, qty from orders where round_id = $1 and status = 'PENDING' order by created_at", [round.id])
     ).map((o): ClearingOrder => ({ id: o.id, teamId: o.team_id, companyId: o.company_id, type: o.type as OrderType, qty: o.qty }));
-    const expected = clearRound(prices, orders, before);
+    const expected = clearRound(prices, orders, before, await this.marketModel(n, round.id));
 
     await this.q("update rounds set closes_at = now() - interval '1 millisecond' where id = $1", [round.id]);
     const started = performance.now();

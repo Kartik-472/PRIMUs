@@ -6,6 +6,7 @@ export * from "./labels";
 export * from "./content";
 export * from "./rules";
 export * from "./prices";
+export * from "./market";
 export * from "./trading";
 export * from "./lottery";
 export * from "./lottery-record";

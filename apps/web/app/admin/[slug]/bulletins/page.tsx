@@ -22,9 +22,19 @@ import { clock, dateTime } from "@/lib/format";
 import { Badge, Notice, Panel, inputClass, type Tone } from "@/components/ui/ui";
 import { ActionButton, ConfirmForm } from "@/components/ui/action";
 import { Countdown } from "@/components/ui/countdown";
-import { hideQuestion, publishBulletin, publishTwist } from "./actions";
+import { cancelNews, hideQuestion, publishBulletin, publishTwist, scheduleNews } from "./actions";
 
 export const metadata: Metadata = { title: "Bulletins" };
+
+interface NewsRow {
+  id: string;
+  title: string;
+  release_round: number;
+  shock_bp: number;
+  shock_scope: "MARKET" | "CRISIS" | "COMPANY";
+  shock_target: string | null;
+  published_at: string | null;
+}
 
 const KIND_TONES: Record<BulletinKind, Tone> = { GENERAL: "slate", TWIST: "violet", CRISIS: "red", RUMOUR: "amber", FAIRNESS: "amber", SYSTEM: "blue" };
 
@@ -36,19 +46,31 @@ export default async function BulletinsPage({ params }: PageProps<"/admin/[slug]
   const status = await loadEventStatus(event.id);
   const organiser = viewer!.role === "ORGANISER";
   const sb = await supabaseServer();
-  const [bulletins, twistDeadline, questions, answers, companies, teams] = await Promise.all([
+  const [bulletins, twistDeadline, questions, answers, companies, teams, crisisCards, news] = await Promise.all([
     sb.from("bulletins").select("id, kind, title, body, published_at, created_at").eq("event_id", event.id).limit(1000),
     sb.from("deadlines").select("at").eq("event_id", event.id).eq("code", "TWIST").maybeSingle<{ at: string }>(),
     fetchAll<QuestionRow>((f, t) => sb.from("qa_questions").select("id, company_id, asker_team_id, body, hidden, created_at").eq("event_id", event.id).order("id").range(f, t)),
     fetchAll<AnswerRow>((f, t) => sb.from("qa_answers").select("id, question_id, body, created_at").eq("event_id", event.id).order("id").range(f, t)),
     sb.from("companies").select("id, ticker, founder_team_id").eq("event_id", event.id),
     sb.from("teams").select("id, code").eq("event_id", event.id),
+    sb.from("crisis_cards").select("id, number, title").eq("event_id", event.id).order("number"),
+    sb
+      .from("bulletins")
+      .select("id, title, release_round, shock_bp, shock_scope, shock_target, published_at")
+      .eq("event_id", event.id)
+      .not("shock_bp", "is", null)
+      .order("release_round")
+      .returns<NewsRow[]>(),
   ]);
   if (bulletins.error) throw new Error(`Could not read the bulletins: ${bulletins.error.message}`);
   const rows = sortBulletins((bulletins.data ?? []) as BulletinRow[]);
   const twist = twistState(rows, !!event.drawn_at);
   const threads = qaThreads(questions, answers, companies.data ?? [], teams.data ?? []);
   const rumours = phaseReached(status.phase, "RESCUE");
+  const tickers = new Map((companies.data ?? []).map((c) => [c.id, c.ticker ?? "—"]));
+  const cards = new Map((crisisCards.data ?? []).map((c) => [c.id, `Crisis ${c.number}: ${c.title}`]));
+  const newsTarget = (n: NewsRow) =>
+    n.shock_scope === "MARKET" ? "Every company" : n.shock_scope === "CRISIS" ? (cards.get(n.shock_target ?? "") ?? "—") : (tickers.get(n.shock_target ?? "") ?? "—");
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -82,7 +104,7 @@ export default async function BulletinsPage({ params }: PageProps<"/admin/[slug]
                 <textarea name="body" rows={4} maxLength={BODY_MAX} className={inputClass} />
               </label>
               <p className="text-xs text-slate-500">
-                A bulletin appears at once on every team screen and the big screen, and cannot be withdrawn. Rumours never change any price. The twist is
+                A bulletin appears at once on every team screen and the big screen, and cannot be withdrawn. Rumours never change any price (market news, below, does). The twist is
                 written under{" "}
                 <Link href={`/admin/${slug}/content`} className="underline">
                   Content
@@ -94,6 +116,114 @@ export default async function BulletinsPage({ params }: PageProps<"/admin/[slug]
         ) : (
           <Notice>The fairness officer can read every bulletin and the Q&amp;A board here; only organisers publish.</Notice>
         )}
+
+        {organiser ? (
+          <Panel title="Market news">
+            <ConfirmForm
+              action={scheduleNews.bind(null, event.id)}
+              submit="Schedule news"
+              confirm="Click again to schedule it"
+              className="grid gap-3"
+              resetOnSuccess
+            >
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600">Released with</span>
+                  <select name="round" defaultValue="1" className={inputClass}>
+                    {Array.from({ length: 9 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        Round {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600">Moves</span>
+                  <select name="scope" defaultValue="CRISIS" className={inputClass}>
+                    <option value="MARKET">Every company</option>
+                    <option value="CRISIS">One crisis card&apos;s companies</option>
+                    <option value="COMPANY">One company</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600">Price shock (%, −20 to +20)</span>
+                  <input name="shock" type="number" step="0.5" min={-20} max={20} required className={inputClass} />
+                </label>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600">Crisis card (if one crisis card)</span>
+                  <select name="crisis" defaultValue="" className={inputClass}>
+                    <option value="">—</option>
+                    {(crisisCards.data ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.number}. {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600">Company (if one company)</span>
+                  <select name="company" defaultValue="" className={inputClass}>
+                    <option value="">—</option>
+                    {(companies.data ?? [])
+                      .filter((c) => c.ticker)
+                      .sort((a, b) => a.ticker!.localeCompare(b.ticker!))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.ticker}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600">Title (up to {TITLE_MAX} characters)</span>
+                <input name="title" required maxLength={TITLE_MAX} autoComplete="off" className={inputClass} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600">Body (up to {BODY_MAX.toLocaleString("en-US")} characters)</span>
+                <textarea name="body" rows={3} maxLength={BODY_MAX} className={inputClass} />
+              </label>
+              <p className="text-xs text-slate-500">
+                Unlike a rumour, market news moves prices. It stays hidden until its round clears, then goes out on every screen in the same instant
+                as the prices it moved, so nobody can trade on it first. The round&apos;s ±10% limit still applies.
+              </p>
+            </ConfirmForm>
+            {(news.data ?? []).length > 0 ? (
+              <ul className="mt-3 divide-y divide-slate-100" aria-label="Market news">
+                {(news.data ?? []).map((n) => (
+                  <li key={n.id} className="py-3">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <Badge tone={n.shock_bp > 0 ? "green" : "red"}>
+                        {n.shock_bp > 0 ? "+" : "−"}
+                        {(Math.abs(n.shock_bp) / 100).toFixed(1)}%
+                      </Badge>
+                      <span className="text-slate-500">
+                        Round {n.release_round} · {newsTarget(n)}
+                      </span>
+                      {n.published_at ? (
+                        <span className="font-mono tabular-nums text-slate-600" title={`${dateTime(n.published_at)} IST`}>
+                          {clock(n.published_at, true)}
+                        </span>
+                      ) : (
+                        <Badge tone="amber">Not published</Badge>
+                      )}
+                      <span className="font-semibold text-slate-900">{n.title}</span>
+                      {!n.published_at ? (
+                        <ActionButton action={cancelNews.bind(null, n.id)} confirm="Click again to cancel this news item">
+                          Cancel
+                        </ActionButton>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-slate-500">No market news yet.</p>
+            )}
+          </Panel>
+        ) : null}
 
         <Panel title={`Q&A board (${threads.length} question${threads.length === 1 ? "" : "s"})`}>
           <p className="text-sm text-slate-600">

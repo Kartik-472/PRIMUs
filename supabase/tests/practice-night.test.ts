@@ -16,6 +16,7 @@ import { runWorker } from "../../apps/web/lib/judge/worker";
 import { createTestDb } from "./pg";
 import { as, rowsAs, service } from "./helpers";
 import { Night, SEED } from "./night";
+import { sha256Hex } from "@msim/engine";
 
 const TEAMS = 150;
 const CLEARING_TARGET_MS = 5000;
@@ -181,6 +182,10 @@ describe(`a practice night: ${TEAMS} bot teams`, () => {
 
   test("the close, settlement and the awards", async () => {
     await n.advanceTo("SETTLEMENT");
+    // The market seed is published at the close, and matches the commitment shown before Round 3.
+    const ev = await n.one("select market_seed_commitment, market_seed_revealed from events where id = $1", [n.eventId]);
+    expect(ev.market_seed_revealed).toMatch(/^[0-9a-f]{64}$/);
+    expect(sha256Hex(ev.market_seed_revealed)).toBe(ev.market_seed_commitment);
     const flags = await n.q("select id from flags where event_id = $1 and status = 'OPEN'", [n.eventId]);
     for (const f of flags) await n.ok(n.fairness, "decide_flag", f.id, "CLEARED", "Practice night: reviewed.");
     await n.advanceTo("AWARDS");

@@ -11,6 +11,8 @@ import {
   avgHalfUp,
   buyReserve,
   clearingPrice,
+  marketMove,
+  marketZ,
   closingPrice,
   crisisShock,
   dealProblemCards,
@@ -132,6 +134,44 @@ describe("prices", () => {
         closingPrice(c.price, c.other),
       ]),
     );
+  });
+});
+
+describe("market model", () => {
+  test("market_z and market_move_ppm agree with marketZ and marketMove to the part per million", async () => {
+    const g = gen(9);
+    const seeds = Array.from({ length: 5 }, (_, i) => sha256Hex(`market-parity-${i}`));
+    const cases = Array.from({ length: 4000 }, (_, i) => {
+      const old = g.pick([g.int(1, 200_000), g.int(300, 3_000), 1, 1_000]);
+      return {
+        seed: g.pick(seeds),
+        round: g.int(1, 9),
+        key: `${i % 40}`,
+        old,
+        net: g.pick([0, g.int(-25_000, 25_000), g.int(-500, 500), 5_000, -5_000, 750_000, -750_000]),
+        score: g.pick([old, g.int(1, 200_000), Math.max(1, old + g.int(-300, 300))]),
+        last: g.pick([0, g.int(-100_000, 100_000), 100_000, -100_000]),
+        news: g.pick([0, 0, 0, g.int(-2_000, 2_000), 2_000, -2_000]),
+      };
+    });
+    const sql = await sqlBatch<[string, string, string, number]>(
+      `(with z as (select app.market_z(c->>'seed', (c->>'round')::int, 'market') as m,
+                          app.market_z(c->>'seed', (c->>'round')::int, 'sector:' || (c->>'key')) as s,
+                          app.market_z(c->>'seed', (c->>'round')::int, 'company:' || (c->>'key')) as o)
+        select jsonb_build_array(m::text, s::text, o::text,
+                 app.market_move_ppm((c->>'old')::bigint, (c->>'net')::bigint, (c->>'score')::bigint, (c->>'last')::int,
+                                     (c->>'news')::int, m, s, o)) from z)`,
+      cases,
+    );
+    cases.forEach((c, i) => {
+      const zm = marketZ(c.seed, c.round, "market");
+      const zs = marketZ(c.seed, c.round, `sector:${c.key}`);
+      const zo = marketZ(c.seed, c.round, `company:${c.key}`);
+      const r = sql[i]!;
+      expect([Number(r[0]), Number(r[1]), Number(r[2])], JSON.stringify(c)).toEqual([zm, zs, zo]);
+      const m = marketMove({ oldPrice: c.old, net: c.net, scorePrice: c.score, lastMovePpm: c.last, newsBp: c.news, zMarket: zm, zSector: zs, zOwn: zo });
+      expect(Number(r[3]), JSON.stringify(c)).toBe(m.ppm);
+    });
   });
 });
 
