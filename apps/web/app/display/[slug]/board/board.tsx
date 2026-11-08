@@ -51,7 +51,7 @@ export async function Board({ event, status, compact = false }: { event: Display
 }
 
 const CHART_LEGEND = "PRIMUS index: every company starts at 1,000. It moves at the crisis, the reveal and each clearing.";
-const LEADERBOARD_LEGEND = "The leaderboard: Round 1 + Round 2 + Round 3 points so far (Round 3 at current market prices). It freezes at 03:30.";
+const LEADERBOARD_LEGEND = "The leaderboard: Round 1 + Round 2 + Round 3 points so far (Round 3 at current market prices). It freezes during the market.";
 
 async function Evening({ event, status }: { event: DisplayEvent; status: EventStatus }) {
   const sb = await supabaseServer();
