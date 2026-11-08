@@ -9,6 +9,7 @@ import { clock } from "@/lib/format";
 import { Countdown, ServerClock } from "@/components/ui/countdown";
 import { RealtimeDot } from "@/components/ui/realtime-dot";
 import { PhaseTimer } from "./phase-timer";
+import { STAGES, stageState } from "@/lib/team/sections";
 
 const BADGE: Record<EventStatus["trading"], string> = {
   OPEN: "bg-[var(--term-green)] text-black",
@@ -25,9 +26,10 @@ export function DisplayHeader({ event, status }: { event: DisplayEvent; status: 
           {event.name}
           {event.is_rehearsal ? <span className="ml-4 rounded bg-violet-500 px-3 py-0.5 text-[22px] font-bold text-white">Rehearsal ×{event.clock_speed}</span> : null}
         </p>
-        <p className="text-[56px] leading-tight font-black tracking-tight text-[var(--term-amber)] uppercase" data-testid="display-phase">
+        <p className="text-[52px] leading-[1.1] font-black tracking-tight text-[var(--term-amber)] uppercase" data-testid="display-phase">
           {PHASE_LABELS[status.phase]}
         </p>
+        <StageRow phase={status.phase} />
       </div>
 
       <div className="text-center" data-testid="display-round">
@@ -70,5 +72,25 @@ export function DisplayHeader({ event, status }: { event: DisplayEvent; status: 
         </div>
       </div>
     </header>
+  );
+}
+
+// Where the night is, for the hall: check-in, the three rounds and the results, done (✓), under way (amber) or ahead.
+function StageRow({ phase }: { phase: EventStatus["phase"] }) {
+  return (
+    <ol className="mt-1 flex gap-6 text-[20px] leading-none font-bold tracking-widest uppercase" aria-label="Stages of the night" data-testid="display-stages">
+      {STAGES.map((s) => {
+        const state = stageState(s, phase);
+        return (
+          <li
+            key={s.key}
+            className={state === "now" ? "bg-[var(--term-amber)] px-2 py-0.5 text-black" : state === "done" ? "py-0.5 text-[var(--term-green)]" : "py-0.5 text-slate-500"}
+          >
+            {state === "done" ? "✓ " : state === "now" ? "▶ " : ""}
+            {s.label.split(" · ")[0]}
+          </li>
+        );
+      })}
+    </ol>
   );
 }

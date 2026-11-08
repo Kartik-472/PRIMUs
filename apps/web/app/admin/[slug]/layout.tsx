@@ -51,7 +51,7 @@ export default async function EventAdminLayout({ children, params }: LayoutProps
                 <SignOutButton />
               </div>
             </div>
-            <AdminNav slug={slug} fairness={viewer!.role === "FAIRNESS"} />
+            <AdminNav slug={slug} fairness={viewer!.role === "FAIRNESS"} phase={status.phase} />
           </header>
           <FeedbackBar className="mx-auto max-w-7xl px-4 pt-4" />
           <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
