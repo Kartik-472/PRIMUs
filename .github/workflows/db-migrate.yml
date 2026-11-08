@@ -1,0 +1,38 @@
+name: Database migrations
+
+# Applies supabase/migrations to the hosted Supabase project. Needs the repository secret SUPABASE_DB_URL: the
+# project's connection string (Supabase → Connect → Session pooler, with the database password filled in).
+# Runs by hand (Actions → Database migrations → Run workflow) and on every push to main that changes a migration.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+      - name: Check the secret is set
+        run: test -n "$SUPABASE_DB_URL" || { echo "Add the SUPABASE_DB_URL repository secret first."; exit 1; }
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      - name: Apply migrations
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      - name: Check the heartbeat job
+        run: |
+          sudo apt-get install -y -qq postgresql-client >/dev/null
+          psql "$SUPABASE_DB_URL" -Atc "select jobname || ' ' || schedule || ' ' || active from cron.job where jobname = 'msim-tick'"
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
