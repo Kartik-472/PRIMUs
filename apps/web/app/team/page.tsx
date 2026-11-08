@@ -179,7 +179,7 @@ function TaskItem({ t }: { t: HomeTask }) {
         ) : null}
       </div>
       {t.href ? (
-        <Link href={t.href} className={`mt-2 inline-block ${t.state === "todo" ? buttonClass.primary : buttonClass.secondary}`}>
+        <Link href={t.href} className={`mt-2 block w-full text-center sm:inline-block sm:w-auto ${t.state === "todo" ? buttonClass.primary : buttonClass.secondary}`}>
           {t.linkLabel}
         </Link>
       ) : null}

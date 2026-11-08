@@ -12,7 +12,8 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { Badge } from "@/components/ui/ui";
 import { Countdown, ServerClock } from "@/components/ui/countdown";
 import { RealtimeDot } from "@/components/ui/realtime-dot";
-import { TeamNav } from "./nav";
+import { TeamNav, TeamTabBar } from "./nav";
+import { StageStepper } from "./stages";
 import { ActionBar } from "./action-bar";
 import { Alerts, SoundToggle } from "./alerts";
 import { loadPlanFacts } from "@/lib/team/home-data";
@@ -116,6 +117,7 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
                 </dd>
               </div>
             </dl>
+            <StageStepper phase={status.phase} />
             <MarketStrip eventId={event.id} />
             <TeamNav phase={status.phase} />
           </header>
@@ -158,7 +160,9 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
             </Link>
           ) : null}
           <FeedbackBar className="mx-auto max-w-7xl px-4 pt-3" />
-          <main className="mx-auto max-w-7xl px-4 py-4">{children}</main>
+          {/* On a phone the tab bar covers the bottom of the screen: the page ends above it. */}
+          <main className="mx-auto max-w-7xl px-4 pt-4 pb-24 sm:pb-4">{children}</main>
+          <TeamTabBar phase={status.phase} />
         </div>
       </FeedbackProvider>
       </EventChannel>

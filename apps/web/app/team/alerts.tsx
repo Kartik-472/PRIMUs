@@ -118,7 +118,7 @@ export function Alerts({ tasks }: { tasks: AlertTask[] }) {
 
   if (toasts.length === 0) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-end gap-2 sm:left-auto sm:w-96" aria-live="polite" role="status" data-testid="alerts">
+    <div className="pointer-events-none fixed inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 sm:bottom-4 flex flex-col items-end gap-2 sm:left-auto sm:w-96" aria-live="polite" role="status" data-testid="alerts">
       {/* On a phone only the newest toast shows, so a stack never covers a form (the order ticket's button). */}
       {toasts.map((t, i) => (
         <div
