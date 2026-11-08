@@ -170,6 +170,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .mx-rain, .mx-pulse { animation: none; }
   .mx-seg, .mx-seg-progress, .mx-btn { transition: none; }
+}
+
 /* The terminal look (team portal and projector): amber and green on black, monospace, square corners, dense panels.
    The team portal's components are written with Tailwind's slate and tint colours; inside .term those colours are
    redrawn as a dark palette, so every team page turns dark without each class being rewritten (white becomes the
