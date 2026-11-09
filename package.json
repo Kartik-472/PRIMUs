@@ -20,6 +20,7 @@
     "calibrate": "tsx --env-file-if-exists=.env scripts/calibrate.ts",
     "human-scores": "tsx --env-file-if-exists=.env scripts/human-scores.ts",
     "new-seed": "tsx scripts/new-seed.ts",
+    "demo-sql": "tsx scripts/demo-sql.ts",
     "rehearse": "tsx --env-file-if-exists=.env scripts/rehearse.ts",
     "load-test": "tsx --env-file-if-exists=.env scripts/load-test.ts",
     "market-sim": "tsx scripts/market-sim.ts"

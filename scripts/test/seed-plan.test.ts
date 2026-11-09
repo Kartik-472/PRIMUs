@@ -107,8 +107,8 @@ describe("seed plan", () => {
     expect(plan.teams.find((t) => t.code === "T003")!.name).toBe("Team T003");
   });
 
-  test("a team has 3 or 4 members; the old track column is refused", () => {
-    expect(() => teamRowsFromCsv("team_name,member1_name,member2_name\nX,A,B\n")).toThrow(/3 or 4 members/);
+  test("a team has 2 to 5 members; the old track column is refused", () => {
+    expect(() => teamRowsFromCsv("team_name,member1_name\nX,A\n")).toThrow(/2 to 5 members/);
     expect(() => teamRowsFromCsv("track,team_name\nfinance,X\n")).toThrow(/no track column/);
   });
 

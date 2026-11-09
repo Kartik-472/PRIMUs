@@ -219,17 +219,17 @@ export function toSeedPayload(plan: SeedPlan, userIds: ReadonlyMap<string, strin
 
 // ───────────────────────────── CSV inputs ─────────────────────────────
 
-/** Columns: team_name, member1_name, member1_roll, … member4_name, member4_roll. */
+/** Columns: team_name, member1_name, member1_roll, … member5_name, member5_roll. */
 export function teamRowsFromCsv(text: string): TeamRow[] {
   return parseCsvObjects(text).map((r, i) => {
     if (r.track !== undefined) throw new Error("teams CSV: PRIMUS teams have no track column (every team plays all three rounds)");
     const members: MemberRow[] = [];
-    for (let m = 1; m <= 4; m++) {
+    for (let m = 1; m <= 5; m++) {
       const full_name = r[`member${m}_name`] ?? "";
       if (full_name) members.push({ full_name, roll_number: r[`member${m}_roll`] || undefined });
     }
-    if (members.length > 0 && members.length < 3) {
-      throw new Error(`teams CSV row ${i + 2}: a team has 3 or 4 members (found ${members.length})`);
+    if (members.length === 1) {
+      throw new Error(`teams CSV row ${i + 2}: a team has 2 to 5 members (found ${members.length})`);
     }
     return { name: r.team_name, members };
   });

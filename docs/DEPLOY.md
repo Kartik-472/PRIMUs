@@ -107,7 +107,7 @@ version of this platform.
 1. In `.env`, set `CARD_SECRET` to a long random secret (run `openssl rand -hex 32` and paste the result) and
    `TEAM_EMAIL_DOMAIN` to the same domain as on Vercel. **Back up `.env` securely**: the same `CARD_SECRET` is needed
    to reprint a lost card.
-2. Copy `seed/teams.example.csv` to `seed/teams.csv` and fill in up to 200 teams: the team name and up to four members
+2. Copy `seed/teams.example.csv` to `seed/teams.csv` and fill in up to 200 teams: the team name and up to five members
    (name and roll number). Copy `seed/staff.example.csv` to `seed/staff.csv` with each staff member's email, role
    (`ORGANISER`, `FAIRNESS` for the faculty fairness officer, `DISPLAY` for each projector) and roll number. These
    files hold personal data: they stay on the laptop.
