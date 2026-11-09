@@ -124,7 +124,7 @@ export function buildSeedPlan(o: SeedOptions): SeedPlan {
     const code = teamCode(i, letter);
     const row = rows[i - 1];
     const members = (row?.members ?? []).filter((m) => m.full_name.trim() !== "");
-    if (members.length > 4) throw new Error(`team ${code}: at most four members`);
+    if (members.length > 5) throw new Error(`team ${code}: at most five members`);
     teams.push({
       code,
       name: row?.name?.trim() || `Team ${code}`,
@@ -145,7 +145,7 @@ export function buildSeedPlan(o: SeedOptions): SeedPlan {
     const code = teamCode(i, backupLetter);
     const row = brows[i - 1];
     const members = (row?.members ?? []).filter((m) => m.full_name.trim() !== "");
-    if (members.length > 4) throw new Error(`team ${code}: at most four members`);
+    if (members.length > 5) throw new Error(`team ${code}: at most five members`);
     teams.push({
       code,
       name: row?.name?.trim() || `Backup ${code}`,

@@ -9,16 +9,36 @@
 -- card (T001…T200): that team row gets the name and members and becomes ACTIVE (registered), so it plays and is shown
 -- everywhere. Only confirmed teams are ever ACTIVE. An organiser can edit a confirmed team or take it off again until
 -- the problem cards are dealt.
+--
+-- Two kinds of team sign up. A Thapar team (THAPAR) gives a team name, and a roll number for every member. A team from
+-- another college (OTHER) gives its college and names only; its team name is the college's unless it gives one. Both
+-- give the team leader's email and phone. A team has 2 to 5 people, the leader first.
+
+-- Teams are now up to five people (they were up to four).
+create or replace function app.members_max_four()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if (select count(*) from public.members m where m.team_id = new.team_id and m.id <> new.id) >= 5 then
+    raise exception 'a team has at most five members' using errcode = '23514';
+  end if;
+  return new;
+end
+$$;
 
 create table public.signups (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events (id) on delete cascade,
   number int not null check (number between 1 and 9999),
   team_name text not null check (length(btrim(team_name)) between 1 and 80),
+  category text not null default 'THAPAR' check (category in ('THAPAR', 'OTHER')),
+  -- Another college's name (OTHER teams only).
+  college text check (college is null or length(btrim(college)) between 1 and 120),
   contact_email text check (contact_email is null or contact_email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
   contact_phone text check (contact_phone is null or length(contact_phone) between 6 and 20),
-  -- [{full_name, roll_number}], 1 to 4 people.
-  members jsonb not null default '[]' check (jsonb_typeof(members) = 'array' and jsonb_array_length(members) between 1 and 4),
+  -- [{full_name, roll_number}], 1 to 5 people, the team leader first. contact_email and contact_phone are the leader's.
+  members jsonb not null default '[]' check (jsonb_typeof(members) = 'array' and jsonb_array_length(members) between 1 and 5),
   source text not null default 'ONLINE' check (source in ('ONLINE', 'DESK')),
   -- The login card this team was given at the desk (set when confirmed).
   team_id uuid unique references public.teams (id) on delete set null,
@@ -48,8 +68,11 @@ returns int language sql immutable as $$
               then nullif(regexp_replace(p_text, '[^0-9]', '', 'g'), '')::int end
 $$;
 
-/** Cleans a members list: names trimmed, empty rows dropped, roll numbers upper-case. Raises on a bad list. */
-create or replace function app.clean_members(p_members jsonb)
+/**
+ * Cleans a members list: names trimmed, empty rows dropped, roll numbers upper-case. Raises on a bad list: fewer than
+ * p_min or more than 5 people, a repeated roll number, or (p_need_roll) a member without a roll number.
+ */
+create or replace function app.clean_members(p_members jsonb, p_min int default 1, p_need_roll boolean default false)
 returns jsonb language plpgsql immutable as $$
 declare
   v jsonb;
@@ -67,6 +90,12 @@ begin
     if length(btrim(m ->> 'full_name')) > 120 then
       raise exception 'a name is at most 120 characters';
     end if;
+    if r is null and p_need_roll then
+      raise exception 'give a roll number for %', btrim(m ->> 'full_name');
+    end if;
+    if r is not null and length(r) > 30 then
+      raise exception 'a roll number is at most 30 characters';
+    end if;
     if r is not null and r = any(rolls) then
       raise exception 'roll number % appears twice', r;
     end if;
@@ -74,8 +103,8 @@ begin
     v := jsonb_build_object('full_name', btrim(m ->> 'full_name'), 'roll_number', r);
     v_out := v_out || jsonb_build_array(v);
   end loop;
-  if jsonb_array_length(v_out) not between 1 and 4 then
-    raise exception 'a team has 1 to 4 members (got %)', jsonb_array_length(v_out);
+  if jsonb_array_length(v_out) not between p_min and 5 then
+    raise exception 'a team has % to 5 members, including the team leader (got %)', p_min, jsonb_array_length(v_out);
   end if;
   return v_out;
 end
@@ -83,14 +112,18 @@ $$;
 
 -- ───────────────────────────── The public sign-up ─────────────────────────────
 
--- Anyone (no login): sign a team up. Returns the sign-up number. One sign-up per contact email; a roll number can be in
--- one sign-up only.
-create or replace function public.sign_up(p_slug text, p_team_name text, p_contact_email text, p_contact_phone text, p_members jsonb)
+-- Anyone (no login): sign a team up. p_category is THAPAR or OTHER; p_members is the whole team, the leader first (2 to 5
+-- people). Returns the sign-up number. One sign-up per leader email; a roll number can be in one sign-up only.
+create or replace function public.sign_up(p_slug text, p_category text, p_team_name text, p_college text,
+                                          p_contact_email text, p_contact_phone text, p_members jsonb)
 returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
   v_event public.events;
+  v_category text := upper(btrim(coalesce(p_category, '')));
+  v_college text := nullif(btrim(coalesce(p_college, '')), '');
+  v_name text := nullif(btrim(coalesce(p_team_name, '')), '');
   v_members jsonb;
   v_email text := nullif(lower(btrim(coalesce(p_contact_email, ''))), '');
   v_phone text := nullif(regexp_replace(coalesce(p_contact_phone, ''), '[^0-9+]', '', 'g'), '');
@@ -105,22 +138,39 @@ begin
   if not v_event.signups_open or v_event.drawn_at is not null then
     return app.fail('CLOSED', 'Sign-ups are closed. You can still register at the desk on the night if there is room.');
   end if;
-  if nullif(btrim(coalesce(p_team_name, '')), '') is null or length(btrim(p_team_name)) > 80 then
+  if v_category not in ('THAPAR', 'OTHER') then
+    return app.fail('BAD_CATEGORY', 'Choose whether your team is from Thapar or from another college.');
+  end if;
+  if v_category = 'OTHER' then
+    if v_college is null or length(v_college) > 120 then
+      return app.fail('BAD_COLLEGE', 'Give your college''s name (up to 120 characters).');
+    end if;
+    v_name := coalesce(v_name, left(v_college, 80));
+  else
+    v_college := null;
+  end if;
+  if v_name is null or length(v_name) > 80 then
     return app.fail('BAD_NAME', 'Give your team a name (up to 80 characters).');
   end if;
   if v_email is null or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
-    return app.fail('BAD_EMAIL', 'Give a contact email we can reach your team on.');
+    return app.fail('BAD_EMAIL', 'Give the team leader''s email.');
   end if;
-  if v_phone is not null and length(v_phone) not between 6 and 20 then
-    return app.fail('BAD_PHONE', 'That phone number does not look right.');
+  if v_phone is null or length(v_phone) not between 6 and 20 then
+    return app.fail('BAD_PHONE', 'Give the team leader''s phone number.');
   end if;
   begin
-    v_members := app.clean_members(p_members);
+    if v_category = 'OTHER' then
+      -- Other colleges give names only.
+      v_members := app.clean_members((select coalesce(jsonb_agg(jsonb_build_object('full_name', x ->> 'full_name')), '[]')
+                                        from jsonb_array_elements(case when jsonb_typeof(p_members) = 'array' then p_members else '[]' end) x), 2);
+    else
+      v_members := app.clean_members(p_members, 2, true);
+    end if;
   exception when others then
     return app.fail('BAD_MEMBERS', initcap(left(sqlerrm, 1)) || substr(sqlerrm, 2) || '.');
   end;
 
-  -- One sign-up per contact email, one sign-up per student: say which number they already have.
+  -- One sign-up per leader email, one sign-up per student: say which number they already have.
   perform pg_advisory_xact_lock(hashtext('signups:' || v_event.id::text));
   select * into v_existing from public.signups where event_id = v_event.id and lower(contact_email) = v_email;
   if v_existing.id is not null then
@@ -140,8 +190,8 @@ begin
   end if;
 
   v_number := coalesce((select max(number) from public.signups where event_id = v_event.id), 0) + 1;
-  insert into public.signups (event_id, number, team_name, contact_email, contact_phone, members, source)
-  values (v_event.id, v_number, btrim(p_team_name), v_email, v_phone, v_members, 'ONLINE');
+  insert into public.signups (event_id, number, team_name, category, college, contact_email, contact_phone, members, source)
+  values (v_event.id, v_number, v_name, v_category, v_college, v_email, v_phone, v_members, 'ONLINE');
   return app.ok(jsonb_build_object('number', app.signup_code(v_number), 'event', v_event.name));
 end
 $$;
@@ -316,13 +366,14 @@ begin
     return app.fail('NO_SIGNUP', format('No sign-up %s.', coalesce(nullif(btrim(p_number), ''), '(empty)')));
   end if;
   return app.ok(jsonb_build_object('id', v.id, 'number', app.signup_code(v.number), 'team_name', v.team_name, 'members', v.members,
+    'category', v.category, 'college', v.college,
     'contact_email', v.contact_email, 'contact_phone', v.contact_phone,
     'card', (select code from public.teams where id = v.team_id)));
 end
 $$;
 
-revoke all on function public.sign_up(text, text, text, text, jsonb) from public;
-grant execute on function public.sign_up(text, text, text, text, jsonb) to anon, authenticated, service_role;
+revoke all on function public.sign_up(text, text, text, text, text, text, jsonb) from public;
+grant execute on function public.sign_up(text, text, text, text, text, text, jsonb) to anon, authenticated, service_role;
 revoke all on function public.signup_event(text) from public;
 grant execute on function public.signup_event(text) to anon, authenticated, service_role;
 do $$
@@ -334,4 +385,4 @@ begin
     execute format('grant execute on function %s to authenticated, service_role', f);
   end loop;
 end $$;
-revoke all on function app.signup_code(int), app.signup_number(text), app.clean_members(jsonb) from public, anon, authenticated;
+revoke all on function app.signup_code(int), app.signup_number(text), app.clean_members(jsonb, int, boolean) from public, anon, authenticated;

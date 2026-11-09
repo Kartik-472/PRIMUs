@@ -186,15 +186,15 @@ describe("rules repeated as constraints", () => {
 });
 
 describe("people", () => {
-  test("a team has at most four members", async () => {
+  test("a team has at most five members", async () => {
     const team = fx.team(fx.codes[0]!).teamId;
     await expect(
       inTxn(async (q) => {
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 6; i++) {
           await q("insert into members (event_id, team_id, full_name) values ($1, $2, $3)", [fx.eventId, team, `M${i}`]);
         }
       }),
-    ).rejects.toThrow(/at most four members/);
+    ).rejects.toThrow(/at most five members/);
   });
 
   test("an organiser's roll number cannot be a team member, and the other way round", async () => {

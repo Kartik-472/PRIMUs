@@ -1,23 +1,32 @@
 "use client";
 
-// The sign-up form: team name, a contact email and phone, and 1 to 4 members (name and roll number). On success the
-// registration number replaces the form, large, so it can be screenshotted.
+// The sign-up form, for two kinds of team. A Thapar team gives its team name, the leader's name, phone, email and roll
+// number, then the name and roll number of each other member. A team from another college gives its college, the
+// leader's name, email and phone, then the name of each other member. A team has 2 to 5 people, the leader included.
+// On success the registration number replaces the form, large, so it can be screenshotted.
 
 import { useState, useTransition } from "react";
 import type { ActionResult } from "@/lib/rpc";
-import { signUpTeam } from "./actions";
+import { signUpTeam, type Category } from "./actions";
 
-const MAX = 4;
+const MIN = 2;
+const MAX = 5;
 const field =
   "block w-full rounded-md border border-zinc-700 bg-black px-3 py-2 text-sm text-slate-100 placeholder:text-zinc-600 focus:border-[#ffb000] focus:outline-none";
 
 export function SignUpForm({ slug }: { slug: string }) {
+  const [category, setCategory] = useState<Category>("THAPAR");
   const [teamName, setTeamName] = useState("");
+  const [college, setCollege] = useState("");
+  const [leaderName, setLeaderName] = useState("");
+  const [leaderRoll, setLeaderRoll] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [members, setMembers] = useState(() => Array.from({ length: MAX }, () => ({ full_name: "", roll_number: "" })));
+  const [size, setSize] = useState(MIN);
+  const [others, setOthers] = useState(() => Array.from({ length: MAX - 1 }, () => ({ full_name: "", roll_number: "" })));
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, start] = useTransition();
+  const thapar = category === "THAPAR";
 
   const number = result?.ok ? String(result.data?.number ?? "") : null;
   if (number) {
@@ -34,56 +43,110 @@ export function SignUpForm({ slug }: { slug: string }) {
     );
   }
 
-  const setMember = (i: number, key: "full_name" | "roll_number", value: string) =>
-    setMembers((prev) => prev.map((m, j) => (j === i ? { ...m, [key]: value } : m)));
+  const setOther = (i: number, key: "full_name" | "roll_number", value: string) =>
+    setOthers((prev) => prev.map((m, j) => (j === i ? { ...m, [key]: value } : m)));
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    const members = [{ full_name: leaderName, roll_number: thapar ? leaderRoll : "" }, ...others.slice(0, size - 1).map((m) => ({ ...m, roll_number: thapar ? m.roll_number : "" }))];
     start(async () => {
       try {
-        setResult(await signUpTeam(slug, { teamName, email, phone, members: members.filter((m) => m.full_name.trim() !== "") }));
+        setResult(await signUpTeam(slug, { category, teamName: thapar ? teamName : "", college: thapar ? "" : college, email, phone, members }));
       } catch {
         setResult({ ok: false, message: "Could not reach the server. Check your connection and try again." });
       }
     });
   };
 
+  const tab = (value: Category, label: string) => (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={category === value}
+      onClick={() => setCategory(value)}
+      className={`flex-1 rounded-md border px-3 py-2 text-sm font-bold ${
+        category === value ? "border-[#ffb000] bg-[#ffb000] text-black" : "border-zinc-700 text-slate-300 hover:border-[#ffb000]"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <form onSubmit={submit} className="space-y-4">
-      <label className="block text-sm">
-        <span className="text-slate-400">Team name</span>
-        <input required maxLength={80} value={teamName} onChange={(e) => setTeamName(e.target.value)} className={field} />
-      </label>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className="text-slate-400">Contact email</span>
-          <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={field} autoComplete="email" />
-        </label>
-        <label className="block text-sm">
-          <span className="text-slate-400">Contact phone</span>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={field} autoComplete="tel" />
-        </label>
+      <div role="radiogroup" aria-label="Your team is from" className="flex gap-2">
+        {tab("THAPAR", "Thapar students")}
+        {tab("OTHER", "Another college")}
       </div>
+      {thapar ? (
+        <label className="block text-sm">
+          <span className="text-slate-400">Team name</span>
+          <input required maxLength={80} value={teamName} onChange={(e) => setTeamName(e.target.value)} className={field} />
+        </label>
+      ) : (
+        <label className="block text-sm">
+          <span className="text-slate-400">College name</span>
+          <input required maxLength={120} value={college} onChange={(e) => setCollege(e.target.value)} className={field} />
+        </label>
+      )}
+      <fieldset className="space-y-3">
+        <legend className="mb-2 text-sm font-bold text-[#ffb000]">Team leader</legend>
+        <div className={`grid gap-4 ${thapar ? "sm:grid-cols-[1fr_10rem]" : ""}`}>
+          <label className="block text-sm">
+            <span className="text-slate-400">Team leader name</span>
+            <input required maxLength={120} value={leaderName} onChange={(e) => setLeaderName(e.target.value)} className={field} autoComplete="name" />
+          </label>
+          {thapar ? (
+            <label className="block text-sm">
+              <span className="text-slate-400">Team leader roll number</span>
+              <input required maxLength={30} value={leaderRoll} onChange={(e) => setLeaderRoll(e.target.value)} className={field} />
+            </label>
+          ) : null}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="text-slate-400">Team leader email</span>
+            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={field} autoComplete="email" />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-400">Team leader phone</span>
+            <input required type="tel" minLength={6} maxLength={20} value={phone} onChange={(e) => setPhone(e.target.value)} className={field} autoComplete="tel" />
+          </label>
+        </div>
+      </fieldset>
+      <label className="block text-sm">
+        <span className="text-slate-400">Number of members (including the team leader)</span>
+        <select value={size} onChange={(e) => setSize(Number(e.target.value))} className={field}>
+          {Array.from({ length: MAX - MIN + 1 }, (_, i) => MIN + i).map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
       <fieldset className="space-y-2">
-        <legend className="text-sm text-slate-400">Members (1 to 4; the first is the team lead)</legend>
-        {members.map((m, i) => (
-          <div key={i} className="grid grid-cols-[1fr_8rem] gap-2">
+        <legend className="mb-2 text-sm font-bold text-[#ffb000]">Other members</legend>
+        {others.slice(0, size - 1).map((m, i) => (
+          <div key={i} className={`grid gap-2 ${thapar ? "grid-cols-[1fr_8rem]" : ""}`}>
             <input
-              aria-label={`Member ${i + 1} name`}
-              placeholder={`Member ${i + 1} name${i === 0 ? "" : " (optional)"}`}
-              required={i === 0}
+              aria-label={`Member ${i + 2} name`}
+              placeholder={`Member ${i + 2} name`}
+              required
               maxLength={120}
               value={m.full_name}
-              onChange={(e) => setMember(i, "full_name", e.target.value)}
+              onChange={(e) => setOther(i, "full_name", e.target.value)}
               className={field}
             />
-            <input
-              aria-label={`Member ${i + 1} roll number`}
-              placeholder="Roll no."
-              maxLength={30}
-              value={m.roll_number}
-              onChange={(e) => setMember(i, "roll_number", e.target.value)}
-              className={field}
-            />
+            {thapar ? (
+              <input
+                aria-label={`Member ${i + 2} roll number`}
+                placeholder="Roll no."
+                required
+                maxLength={30}
+                value={m.roll_number}
+                onChange={(e) => setOther(i, "roll_number", e.target.value)}
+                className={field}
+              />
+            ) : null}
           </div>
         ))}
       </fieldset>

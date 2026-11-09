@@ -13,10 +13,13 @@ test("sign up online, then the desk confirms the team onto a login card", async 
 
   await page.goto("/register/e2e-register");
   await page.getByLabel("Team name").fill("Masala Labs");
-  await page.getByLabel("Contact email").fill("lead@masala.example");
-  await page.getByLabel("Member 1 name").fill("Asha Rao");
-  await page.getByLabel("Member 1 roll number").fill("r100");
+  await page.getByLabel("Team leader name").fill("Asha Rao");
+  await page.getByLabel("Team leader roll number").fill("r100");
+  await page.getByLabel("Team leader email").fill("lead@masala.example");
+  await page.getByLabel("Team leader phone").fill("98765 43210");
+  await page.getByLabel("Number of members (including the team leader)").selectOption("2");
   await page.getByLabel("Member 2 name").fill("Ben Ali");
+  await page.getByLabel("Member 2 roll number").fill("r101");
   await page.getByRole("button", { name: "Register team" }).click();
   await expect(page.getByTestId("signup-number")).toHaveText("PR-0001");
 

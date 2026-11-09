@@ -16,6 +16,8 @@ export interface ConfirmedTeam {
   signupId: string;
   number: string;
   code: string;
+  /** "Thapar" or the other college's name. */
+  from: string;
   name: string;
   members: DeskMember[];
 }
@@ -24,12 +26,14 @@ interface Draft {
   signupId: string | null;
   number: string | null;
   code: string | null;
+  /** "Thapar" or the other college's name; null for a walk-in. */
+  from: string | null;
   name: string;
   members: { full_name: string; roll_number: string }[];
 }
 
-const MAX = 4;
-const blank = (): Draft => ({ signupId: null, number: null, code: null, name: "", members: [{ full_name: "", roll_number: "" }] });
+const MAX = 5;
+const blank = (): Draft => ({ signupId: null, number: null, code: null, from: null, name: "", members: [{ full_name: "", roll_number: "" }] });
 const fromMembers = (m: DeskMember[]) => m.map((x) => ({ full_name: x.full_name, roll_number: x.roll_number ?? "" }));
 
 export function Desk({ eventId, confirmed, editable }: { eventId: string; confirmed: ConfirmedTeam[]; editable: boolean }) {
@@ -62,6 +66,7 @@ export function Desk({ eventId, confirmed, editable }: { eventId: string; confir
           signupId: String(d.id),
           number: String(d.number),
           code: (d.card as string | null) ?? null,
+          from: d.category === "OTHER" ? String(d.college ?? "Another college") : "Thapar",
           name: String(d.team_name ?? ""),
           members: fromMembers((d.members as DeskMember[]) ?? []),
         });
@@ -138,6 +143,7 @@ export function Desk({ eventId, confirmed, editable }: { eventId: string; confir
                 {draft.number ? (
                   <>
                     Registration <b className="font-mono">{draft.number}</b>
+                    {draft.from ? ` · ${draft.from}` : ""}
                     {draft.code ? (
                       <>
                         {" "}
@@ -156,7 +162,7 @@ export function Desk({ eventId, confirmed, editable }: { eventId: string; confir
                 <input value={draft.name} maxLength={80} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputClass} />
               </label>
               <div className="space-y-2">
-                <p className="text-sm text-slate-600">Members ({draft.members.length} of {MAX})</p>
+                <p className="text-sm text-slate-600">Members, team leader first ({draft.members.length} of {MAX})</p>
                 {draft.members.map((m, i) => (
                   <div key={i} className="flex gap-2">
                     <input
@@ -229,7 +235,10 @@ export function Desk({ eventId, confirmed, editable }: { eventId: string; confir
                 <tr key={t.signupId}>
                   <td className="px-3 py-2 font-mono font-semibold">{t.code}</td>
                   <td className="px-3 py-2 font-mono">{t.number}</td>
-                  <td className="px-3 py-2">{t.name}</td>
+                  <td className="px-3 py-2">
+                    {t.name}
+                    <span className="block text-xs text-slate-500">{t.from}</span>
+                  </td>
                   <td className="px-3 py-2 text-slate-600">{t.members.map((m) => m.full_name).join(", ")}</td>
                   <td className="px-3 py-2">
                     {editable ? (
@@ -241,7 +250,7 @@ export function Desk({ eventId, confirmed, editable }: { eventId: string; confir
                           onClick={() => {
                             setHanded(null);
                             setResult(null);
-                            setDraft({ signupId: t.signupId, number: t.number, code: t.code, name: t.name, members: fromMembers(t.members) });
+                            setDraft({ signupId: t.signupId, number: t.number, code: t.code, from: t.from, name: t.name, members: fromMembers(t.members) });
                             window.scrollTo({ top: 0, behavior: "smooth" });
                           }}
                         >

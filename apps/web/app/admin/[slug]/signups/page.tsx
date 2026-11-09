@@ -12,6 +12,8 @@ export const metadata: Metadata = { title: "Sign-ups" };
 interface SignupRow {
   number: number;
   team_name: string;
+  category: "THAPAR" | "OTHER";
+  college: string | null;
   contact_email: string | null;
   contact_phone: string | null;
   members: { full_name: string; roll_number: string | null }[];
@@ -32,7 +34,7 @@ export default async function SignupsPage({ params }: PageProps<"/admin/[slug]/s
   const [list, ev] = await Promise.all([
     sb
       .from("signups")
-      .select("number, team_name, contact_email, contact_phone, members, source, team_id, created_at")
+      .select("number, team_name, category, college, contact_email, contact_phone, members, source, team_id, created_at")
       .eq("event_id", event.id)
       .order("number")
       .limit(5000),
@@ -45,6 +47,7 @@ export default async function SignupsPage({ params }: PageProps<"/admin/[slug]/s
   const online = rows.filter((r) => r.source === "ONLINE");
   const students = online.reduce((n, r) => n + r.members.length, 0);
   const confirmedOnline = online.filter((r) => r.team_id).length;
+  const thapar = online.filter((r) => r.category === "THAPAR").length;
   const walkIns = rows.filter((r) => r.source === "DESK" && r.team_id).length;
   const open = ev.data.signups_open && !event.drawn_at;
   const h = await headers();
@@ -62,8 +65,10 @@ export default async function SignupsPage({ params }: PageProps<"/admin/[slug]/s
           ) : null
         }
       >
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Stat label="Teams signed up" value={online.length} hint="online, not committed" />
+          <Stat label="Thapar teams" value={thapar} />
+          <Stat label="Other colleges" value={online.length - thapar} hint={`${new Set(online.filter((r) => r.college).map((r) => r.college!.toLowerCase())).size} colleges`} />
           <Stat label="Students signed up" value={students} hint={online.length ? `${(students / online.length).toFixed(1)} per team` : undefined} />
           <Stat label="Turned up so far" value={confirmedOnline} hint={online.length ? `${Math.round((100 * confirmedOnline) / online.length)}% of sign-ups` : undefined} />
           <Stat label="Walk-ins confirmed" value={walkIns} hint="registered at the desk without signing up" />
@@ -79,11 +84,12 @@ export default async function SignupsPage({ params }: PageProps<"/admin/[slug]/s
         </div>
       </Panel>
       <Panel title={`All sign-ups (${rows.length})`}>
-        <Table head={["No.", "Team", "Members", "Contact", "Signed up", "Status"]} empty="No sign-ups yet.">
+        <Table head={["No.", "Team", "From", "Members (leader first)", "Leader contact", "Signed up", "Status"]} empty="No sign-ups yet.">
           {rows.map((r) => (
             <tr key={r.number}>
               <Td mono>{code(r.number)}</Td>
               <Td>{r.team_name}</Td>
+              <Td>{r.category === "OTHER" ? r.college ?? "Another college" : "Thapar"}</Td>
               <Td>
                 {r.members.map((m) => (m.roll_number ? `${m.full_name} (${m.roll_number})` : m.full_name)).join(", ")}
               </Td>

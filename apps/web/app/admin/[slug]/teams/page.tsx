@@ -19,7 +19,7 @@ export default async function RegistrationDeskPage({ params }: PageProps<"/admin
   const organiser = viewer!.role === "ORGANISER";
   const sb = await supabaseServer();
   const [signups, teams] = await Promise.all([
-    sb.from("signups").select("id, number, team_name, members, team_id").eq("event_id", event.id).not("team_id", "is", null).limit(1000),
+    sb.from("signups").select("id, number, team_name, category, college, members, team_id").eq("event_id", event.id).not("team_id", "is", null).limit(1000),
     sb.from("teams").select("id, code, status").eq("event_id", event.id).limit(1000),
   ]);
   if (signups.error) {
@@ -35,6 +35,7 @@ export default async function RegistrationDeskPage({ params }: PageProps<"/admin
       signupId: s.id as string,
       number: code(s.number as number),
       code: cards.get(s.team_id as string)?.code ?? "?",
+      from: s.category === "OTHER" ? ((s.college as string | null) ?? "Another college") : "Thapar",
       name: s.team_name as string,
       members: (s.members ?? []) as DeskMember[],
     }))

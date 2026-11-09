@@ -23,19 +23,31 @@ describe("sign-ups and the desk", () => {
     await db.pool.query("update events set is_rehearsal = false where id = $1", [n.eventId]);
     await db.pool.query("update teams set status = 'BACKUP' where event_id = $1", [n.eventId]);
     await db.pool.query("delete from members where event_id = $1", [n.eventId]);
-    const signUp = (name: string, email: string, members: unknown) =>
-      as(db.pool, anon, async (c) => (await c.query("select public.sign_up($1, $2, $3, $4, $5) as r", [slug, name, email, "+91 98765 43210", JSON.stringify(members)])).rows[0].r, { commit: true });
+    const signUp = (name: string, email: string, members: unknown, category = "THAPAR", college: string | null = null, phone = "+91 98765 43210") =>
+      as(
+        db.pool,
+        anon,
+        async (c) => (await c.query("select public.sign_up($1, $2, $3, $4, $5, $6, $7) as r", [slug, category, name, college, email, phone, JSON.stringify(members)])).rows[0].r,
+        { commit: true },
+      );
 
     // Anyone can see the event and sign up; each gets the next number.
     const info = await as(db.pool, anon, async (c) => (await c.query("select public.signup_event($1) as r", [slug])).rows[0].r);
     expect(info).toMatchObject({ open: true });
     expect(await signUp("Alpha", "a@x.org", [{ full_name: "Asha", roll_number: "r1" }, { full_name: " ", roll_number: "" }, { full_name: "Ben", roll_number: "R2" }])).toMatchObject({ ok: true, number: "PR-0001" });
-    expect(await signUp("Beta", "b@x.org", [{ full_name: "Chen", roll_number: "R3" }])).toMatchObject({ ok: true, number: "PR-0002" });
-    // Same email again, a roll number already signed up, no members, bad email: refused with a reason.
-    expect(await signUp("Again", "A@X.org", [{ full_name: "Dev", roll_number: "R9" }])).toMatchObject({ ok: false, code: "ALREADY", number: "PR-0001" });
-    expect(await signUp("Gamma", "g@x.org", [{ full_name: "Esha", roll_number: "R1" }])).toMatchObject({ ok: false, code: "ROLL_TAKEN" });
-    expect(await signUp("Delta", "d@x.org", [])).toMatchObject({ ok: false, code: "BAD_MEMBERS" });
-    expect(await signUp("Delta", "nope", [{ full_name: "Farah" }])).toMatchObject({ ok: false, code: "BAD_EMAIL" });
+    // Another college: names only (roll numbers dropped), named after the college unless a name is given.
+    expect(await signUp("", "b@x.org", [{ full_name: "Chen", roll_number: "R3" }, { full_name: "Dina", roll_number: "R1" }], "OTHER", "PEC Chandigarh")).toMatchObject({ ok: true, number: "PR-0002" });
+    const two = { full_name: "Ira", roll_number: "R10" };
+    // Same email again, a roll number already signed up, too few or too many people, a Thapar member without a roll number,
+    // no college, no phone, bad email: refused with a reason.
+    expect(await signUp("Again", "A@X.org", [{ full_name: "Dev", roll_number: "R9" }, two])).toMatchObject({ ok: false, code: "ALREADY", number: "PR-0001" });
+    expect(await signUp("Gamma", "g@x.org", [{ full_name: "Esha", roll_number: "R1" }, two])).toMatchObject({ ok: false, code: "ROLL_TAKEN" });
+    expect(await signUp("Delta", "d@x.org", [{ full_name: "Esha", roll_number: "R5" }])).toMatchObject({ ok: false, code: "BAD_MEMBERS" });
+    expect(await signUp("Delta", "d@x.org", Array.from({ length: 6 }, (_, i) => ({ full_name: `P${i}`, roll_number: `Q${i}` })))).toMatchObject({ ok: false, code: "BAD_MEMBERS" });
+    expect(await signUp("Delta", "d@x.org", [{ full_name: "Esha", roll_number: "R5" }, { full_name: "Farah" }])).toMatchObject({ ok: false, code: "BAD_MEMBERS" });
+    expect(await signUp("", "d@x.org", [{ full_name: "Esha" }, { full_name: "Farah" }], "OTHER", " ")).toMatchObject({ ok: false, code: "BAD_COLLEGE" });
+    expect(await signUp("Delta", "d@x.org", [{ full_name: "Esha", roll_number: "R5" }, two], "THAPAR", null, "")).toMatchObject({ ok: false, code: "BAD_PHONE" });
+    expect(await signUp("Delta", "nope", [{ full_name: "Esha", roll_number: "R5" }, two])).toMatchObject({ ok: false, code: "BAD_EMAIL" });
     // Anonymous visitors and teams cannot read the sign-ups.
     await expect(as(db.pool, anon, (c) => c.query("select * from signups"))).rejects.toThrow(/permission denied/);
     expect(await n.q("select 1 from signups where event_id = $1", [n.eventId])).toHaveLength(2);
@@ -45,6 +57,9 @@ describe("sign-ups and the desk", () => {
     const a = await n.org("find_signup", n.eventId, "pr1");
     expect(a).toMatchObject({ number: "PR-0001", team_name: "Alpha", card: null });
     expect(a.members).toEqual([{ full_name: "Asha", roll_number: "R1" }, { full_name: "Ben", roll_number: "R2" }]);
+    const other = await n.org("find_signup", n.eventId, "2");
+    expect(other).toMatchObject({ team_name: "PEC Chandigarh", category: "OTHER", college: "PEC Chandigarh" });
+    expect(other.members).toEqual([{ full_name: "Chen", roll_number: null }, { full_name: "Dina", roll_number: null }]);
     const first = n.codes[0]!;
     expect(await n.org("desk_confirm", n.eventId, a.id, "Alpha Squad", JSON.stringify([...a.members, { full_name: "Gita", roll_number: "R7" }]))).toMatchObject({ card: first, new: true, active: 1 });
     expect(await n.q("select name, status from teams where code = $1", [first])).toEqual([{ name: "Alpha Squad", status: "ACTIVE" }]);
@@ -75,3 +90,4 @@ describe("sign-ups and the desk", () => {
     expect(await signUp("Late", "late@x.org", [{ full_name: "Ira" }])).toMatchObject({ ok: false, code: "CLOSED" });
   });
 });
+
