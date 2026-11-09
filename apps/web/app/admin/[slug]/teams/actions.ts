@@ -1,25 +1,39 @@
 "use server";
 
-// Registration: tick the teams that play tonight, or activate / withdraw one team, before the draw (game functions,
-// run as the signed-in organiser).
+// The registration desk: find a sign-up, confirm a team (from a sign-up or a walk-in) onto a login card, edit it, or
+// take it off again. Each is one game function run as the signed-in organiser.
 
 import { rpc, type ActionResult } from "@/lib/rpc";
 
-const WORDS = { ACTIVE: "is registered", BACKUP: "is no longer registered", WITHDRAWN: "is withdrawn" } as const;
-
-export async function setTeamStatus(eventId: string, code: string, status: keyof typeof WORDS): Promise<ActionResult> {
-  const r = await rpc("set_team_status", { p_event: eventId, p_team_code: code, p_status: status, p_reason: null });
-  if (!r.ok) return r;
-  return { ...r, message: `${code} ${WORDS[status]}. ${String(r.data?.active ?? "")} teams are registered.` };
+export interface DeskMember {
+  full_name: string;
+  roll_number: string | null;
 }
 
-/** Registers exactly the ticked teams; every other team is unregistered. */
-export async function saveRegistration(eventId: string, codes: string[]): Promise<ActionResult> {
-  const r = await rpc("set_registration", { p_event: eventId, p_codes: codes });
+export async function findSignup(eventId: string, number: string): Promise<ActionResult> {
+  return rpc("find_signup", { p_event: eventId, p_number: number });
+}
+
+export async function confirmTeam(eventId: string, signupId: string | null, teamName: string, members: DeskMember[]): Promise<ActionResult> {
+  const r = await rpc("desk_confirm", { p_event: eventId, p_signup: signupId, p_team_name: teamName, p_members: members });
   if (!r.ok) return r;
-  const d = r.data ?? {};
+  const code = String(r.data?.code ?? "");
   return {
     ...r,
-    message: `Saved: ${String(d.active ?? 0)} teams registered (${String(d.registered ?? 0)} added, ${String(d.unregistered ?? 0)} taken off).`,
+    message: r.data?.new
+      ? `Confirmed as ${String(r.data?.signup ?? "")}: give them login card ${code}. ${String(r.data?.active ?? "")} teams confirmed.`
+      : `Saved ${code}.`,
   };
+}
+
+export async function removeTeam(eventId: string, signupId: string): Promise<ActionResult> {
+  const r = await rpc("desk_remove", { p_event: eventId, p_signup: signupId });
+  if (!r.ok) return r;
+  return { ...r, message: `Removed: card ${String(r.data?.code ?? "")} is free again. ${String(r.data?.active ?? "")} teams confirmed.` };
+}
+
+export async function setSignupsOpen(eventId: string, open: boolean): Promise<ActionResult> {
+  const r = await rpc("set_signups_open", { p_event: eventId, p_open: open });
+  if (!r.ok) return r;
+  return { ...r, message: open ? "Online registration is open." : "Online registration is closed." };
 }
