@@ -61,7 +61,7 @@ export function Desk({ eventId, confirmed, editable }: { eventId: string; confir
         setDraft({
           signupId: String(d.id),
           number: String(d.number),
-          code: (d.code as string | null) ?? null,
+          code: (d.card as string | null) ?? null,
           name: String(d.team_name ?? ""),
           members: fromMembers((d.members as DeskMember[]) ?? []),
         });
@@ -74,7 +74,7 @@ export function Desk({ eventId, confirmed, editable }: { eventId: string; confir
     run(
       () => confirmTeam(eventId, draft.signupId, draft.name, members),
       (r) => {
-        if (r.data?.new) setHanded(String(r.data?.code ?? ""));
+        if (r.data?.new) setHanded(String(r.data?.card ?? ""));
         setDraft(null);
         setLookup("");
       },

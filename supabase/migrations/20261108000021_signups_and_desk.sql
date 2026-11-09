@@ -257,7 +257,7 @@ begin
           jsonb_build_object('name', v_name, 'members', v_members));
   perform app.broadcast(p_event, 'team_status', jsonb_build_object('code', v_team.code));
   perform app.broadcast(p_event, 'settings', '{}'::jsonb, true);
-  return app.ok(jsonb_build_object('code', v_team.code, 'signup', app.signup_code(v_signup.number), 'new', v_new,
+  return app.ok(jsonb_build_object('card', v_team.code, 'signup', app.signup_code(v_signup.number), 'new', v_new,
     'active', (select count(*) from public.teams where event_id = p_event and status = 'ACTIVE')));
 end
 $$;
@@ -297,7 +297,7 @@ begin
           jsonb_build_object('signup', app.signup_code(v_signup.number), 'name', v_team.name), '{}'::jsonb);
   perform app.broadcast(p_event, 'team_status', jsonb_build_object('code', v_team.code));
   perform app.broadcast(p_event, 'settings', '{}'::jsonb, true);
-  return app.ok(jsonb_build_object('code', v_team.code,
+  return app.ok(jsonb_build_object('card', v_team.code,
     'active', (select count(*) from public.teams where event_id = p_event and status = 'ACTIVE')));
 end
 $$;
@@ -317,7 +317,7 @@ begin
   end if;
   return app.ok(jsonb_build_object('id', v.id, 'number', app.signup_code(v.number), 'team_name', v.team_name, 'members', v.members,
     'contact_email', v.contact_email, 'contact_phone', v.contact_phone,
-    'code', (select code from public.teams where id = v.team_id)));
+    'card', (select code from public.teams where id = v.team_id)));
 end
 $$;
 

@@ -17,7 +17,7 @@ export async function findSignup(eventId: string, number: string): Promise<Actio
 export async function confirmTeam(eventId: string, signupId: string | null, teamName: string, members: DeskMember[]): Promise<ActionResult> {
   const r = await rpc("desk_confirm", { p_event: eventId, p_signup: signupId, p_team_name: teamName, p_members: members });
   if (!r.ok) return r;
-  const code = String(r.data?.code ?? "");
+  const code = String(r.data?.card ?? "");
   return {
     ...r,
     message: r.data?.new
@@ -29,7 +29,7 @@ export async function confirmTeam(eventId: string, signupId: string | null, team
 export async function removeTeam(eventId: string, signupId: string): Promise<ActionResult> {
   const r = await rpc("desk_remove", { p_event: eventId, p_signup: signupId });
   if (!r.ok) return r;
-  return { ...r, message: `Removed: card ${String(r.data?.code ?? "")} is free again. ${String(r.data?.active ?? "")} teams confirmed.` };
+  return { ...r, message: `Removed: card ${String(r.data?.card ?? "")} is free again. ${String(r.data?.active ?? "")} teams confirmed.` };
 }
 
 export async function setSignupsOpen(eventId: string, open: boolean): Promise<ActionResult> {

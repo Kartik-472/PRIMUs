@@ -37,7 +37,7 @@ test("sign up online, then the desk confirms the team onto a login card", async 
   await editor.getByLabel("Member 3 name").fill("Chen Li");
   await editor.getByRole("button", { name: "Confirm team and give a card" }).click();
   // The desk's result line says which card to give (or, if refused, why).
-  await expect(page.getByRole("status").or(page.getByRole("alert")).first()).toContainText("login card R001");
+  await expect(page.locator("p[role=status], p[role=alert]").first()).toContainText("login card R001");
   await expect(page.getByTestId("desk-handed")).toContainText("R001");
   await expect(page.getByRole("cell", { name: "Chen Li", exact: false })).toBeVisible();
 

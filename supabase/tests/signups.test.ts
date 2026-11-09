@@ -43,28 +43,28 @@ describe("sign-ups and the desk", () => {
 
     // The desk finds a sign-up however the number is typed, and confirms it on the first free card.
     const a = await n.org("find_signup", n.eventId, "pr1");
-    expect(a).toMatchObject({ number: "PR-0001", team_name: "Alpha", code: null });
+    expect(a).toMatchObject({ number: "PR-0001", team_name: "Alpha", card: null });
     expect(a.members).toEqual([{ full_name: "Asha", roll_number: "R1" }, { full_name: "Ben", roll_number: "R2" }]);
     const first = n.codes[0]!;
-    expect(await n.org("desk_confirm", n.eventId, a.id, "Alpha Squad", JSON.stringify([...a.members, { full_name: "Gita", roll_number: "R7" }]))).toMatchObject({ code: first, new: true, active: 1 });
+    expect(await n.org("desk_confirm", n.eventId, a.id, "Alpha Squad", JSON.stringify([...a.members, { full_name: "Gita", roll_number: "R7" }]))).toMatchObject({ card: first, new: true, active: 1 });
     expect(await n.q("select name, status from teams where code = $1", [first])).toEqual([{ name: "Alpha Squad", status: "ACTIVE" }]);
     expect((await n.q("select full_name from members m join teams t on t.id = m.team_id where t.code = $1 order by full_name", [first])).map((r) => r.full_name)).toEqual(["Asha", "Ben", "Gita"]);
 
     // Editing keeps the card: a member removed.
-    expect(await n.org("desk_confirm", n.eventId, a.id, "Alpha Squad", JSON.stringify([{ full_name: "Asha", roll_number: "R1" }]))).toMatchObject({ code: first, new: false, active: 1 });
+    expect(await n.org("desk_confirm", n.eventId, a.id, "Alpha Squad", JSON.stringify([{ full_name: "Asha", roll_number: "R1" }]))).toMatchObject({ card: first, new: false, active: 1 });
     expect(await n.q("select count(*)::int as n from members m join teams t on t.id = m.team_id where t.code = $1", [first])).toEqual([{ n: 1 }]);
 
     // A walk-in team gets the next card; a student cannot be in two confirmed teams.
     const walkIn = await n.org("desk_confirm", n.eventId, null, "Walk-ins", JSON.stringify([{ full_name: "Hari", roll_number: "R8" }]));
-    expect(walkIn).toMatchObject({ code: n.codes[1], signup: "PR-0003", new: true, active: 2 });
+    expect(walkIn).toMatchObject({ card: n.codes[1], signup: "PR-0003", new: true, active: 2 });
     expect(await n.call(n.lead, "desk_confirm", n.eventId, null, "Copycats", JSON.stringify([{ full_name: "Asha", roll_number: "R1" }]))).toMatchObject({ ok: false, code: "ROLL_TAKEN" });
 
     // Removing frees the card for the next team.
-    expect(await n.org("desk_remove", n.eventId, a.id)).toMatchObject({ code: first, active: 1 });
+    expect(await n.org("desk_remove", n.eventId, a.id)).toMatchObject({ card: first, active: 1 });
     expect(await n.q("select name, status from teams where code = $1", [first])).toEqual([{ name: `Team ${first}`, status: "BACKUP" }]);
     const b = await n.org("find_signup", n.eventId, "PR-0002");
-    expect(await n.org("desk_confirm", n.eventId, b.id, "Beta", JSON.stringify(b.members))).toMatchObject({ code: first });
-    expect(await n.org("desk_confirm", n.eventId, a.id, "Alpha", JSON.stringify(a.members))).toMatchObject({ code: n.codes[2] });
+    expect(await n.org("desk_confirm", n.eventId, b.id, "Beta", JSON.stringify(b.members))).toMatchObject({ card: first });
+    expect(await n.org("desk_confirm", n.eventId, a.id, "Alpha", JSON.stringify(a.members))).toMatchObject({ card: n.codes[2] });
 
     // At the draw only the confirmed teams get a company; then the desk is closed, and so are sign-ups.
     await n.advanceTo("BRIEFING");
