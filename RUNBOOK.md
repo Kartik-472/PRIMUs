@@ -16,7 +16,7 @@ two-click button says "Click again to …": the second click counts only for wha
 | Exchange desk (organiser) | laptop 4, **Rounds** and **Ledger** | watches rounds open and clear; approves ledger corrections and appeals (the second organiser) |
 | Fairness officer (faculty) | own laptop, **Fairness** | reviews collusion flags in Settlement and decides each one |
 | Tech on call | any laptop, **Health** and the Supabase and Vercel dashboards | connections, errors, the venue network |
-| Registration desk | printed login cards | one card per team; the 3 backup cards (B001–B003) for walk-ins and replacements; reprints with `pnpm cards … --only <codes>` |
+| Registration desk | printed login cards | 200 team cards (T001–T200): hand one to each team as it checks in, then tick it on **Registration**; reprints with `pnpm cards … --only <codes>` |
 | Projector | a laptop signed in with a display account | `/display/<slug>` in full screen (F11) |
 
 Keep the organiser laptops on wired or staff network, on power. Keep the main page open on laptop 1 all night: an
@@ -44,7 +44,7 @@ open control panel also ticks the event, as a backup to the database's clock.
 | Time | Phase | Do | Watch |
 |---|---|---|---|
 | 20:00 | SETUP → CHECKIN | **Timing → Start the night…**: check the preview, then confirm. Hand out the cards (one per team). | Health: connected screens rising towards 200 |
-| 20:00–21:15 | CHECKIN, BRIEFING | **Teams:** withdraw teams that did not come, and activate a backup card (B001–B003) for a walk-in team or a replacement. Only possible **before the lottery**: at the draw, only the playing teams get a company. | Teams: the number playing; the problem deck needs one card per three playing teams |
+| 20:00–21:15 | CHECKIN, BRIEFING | **Registration:** tick every team that checked in and press **Save registration**. Unticked teams cannot use their pages and are hidden all night. Only possible **before the lottery**: at the draw, only registered teams get a company. | Registration: the number registered; the problem deck needs one card per three registered teams (the default deck of 50 covers 150) |
 | 20:45 | BRIEFING | Explain the night; show "How judging works" (`/team/judging`) on the projector. | |
 | 21:15 | BRIEFING → BUILD | **Lottery:** enter the secret seed and roll the dice in front of the room (two clicks). The problem cards are dealt; BUILD starts. | Lottery page: "verified"; teams' **Round 1** pages show their card |
 | 22:15 | BUILD | *(auto)* the twist is published to every screen. | The twist takeover on the projector |

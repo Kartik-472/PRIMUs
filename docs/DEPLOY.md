@@ -1,8 +1,8 @@
 <!-- Deployment instructions for organisers; keep credentials and printed passwords outside version control. -->
 # Deploy PRIMUS: step by step
 
-This guide takes you from nothing to a live site for PRIMUS (Friday 20 November 2026, 20:00–06:00 IST, 50 teams and
-3 backup teams, about 200 participants). It is written for an organiser without a technical background: follow the steps in order,
+This guide takes you from nothing to a live site for PRIMUS (Friday 20 November 2026, 20:00–06:00 IST, 200 team logins, of
+which the teams an organiser registers play). It is written for an organiser without a technical background: follow the steps in order,
 and do not skip the checks. The night itself is in [RUNBOOK.md](../RUNBOOK.md); how the AI judge works is in
 [JUDGE.md](JUDGE.md).
 
@@ -107,7 +107,7 @@ version of this platform.
 1. In `.env`, set `CARD_SECRET` to a long random secret (run `openssl rand -hex 32` and paste the result) and
    `TEAM_EMAIL_DOMAIN` to the same domain as on Vercel. **Back up `.env` securely**: the same `CARD_SECRET` is needed
    to reprint a lost card.
-2. Copy `seed/teams.example.csv` to `seed/teams.csv` and fill in 50 teams: the team name and up to four members
+2. Copy `seed/teams.example.csv` to `seed/teams.csv` and fill in up to 200 teams: the team name and up to four members
    (name and roll number). Copy `seed/staff.example.csv` to `seed/staff.csv` with each staff member's email, role
    (`ORGANISER`, `FAIRNESS` for the faculty fairness officer, `DISPLAY` for each projector) and roll number. These
    files hold personal data: they stay on the laptop.
@@ -122,12 +122,12 @@ version of this platform.
    ```bash
    pnpm seed --slug primus-2026 --date 2026-11-20 --teams seed/teams.csv --staff seed/staff.csv --commitment <the commitment> --dry-run
    ```
-   Then run it again without `--dry-run`. It creates every login, the 50 teams and companies, 3 backup teams
-   (B001–B003: they play only if an organiser activates them on the **Teams** tab before the lottery; change the number
-   with `--backups N`, name them with `--backup-teams seed/backups.csv`), the night's default
+   Then run it again without `--dry-run`. It creates every login, the 200 teams (T001–T200) and companies, all **unregistered**:
+   a team plays only once an organiser ticks it on the **Registration** tab before the lottery (`--all-registered` starts
+   them all registered; `--backups N` adds extra backup teams), the night's default
    durations and the decks, and writes (the date is the planned start only: the night starts when an organiser
    clicks **Start the night** on the control panel's **Timing** page, and every time follows from there):
-   - `out/primus-2026-login-cards.pdf`: 53 cards (50 teams and 3 backups), eight per A4 page;
+   - `out/primus-2026-login-cards.pdf`: 200 cards, eight per A4 page;
    - `out/primus-2026-staff-logins.txt`: the staff passwords.
 6. Print the cards, cut them, and keep them locked away until check-in. To reprint some:
    `pnpm cards --slug primus-2026 --date 2026-11-20 --teams seed/teams.csv --only T007,T112`.

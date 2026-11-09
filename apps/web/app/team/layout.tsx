@@ -38,8 +38,9 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
     console.error("team layout: no plan for the bar and alerts:", err);
     return null;
   });
-  // A backup or withdrawn team: before the draw it can look around (and is told it is not playing yet); once the
-  // problem cards are dealt it is out of the night, and every page says so instead of showing the game.
+  // Only a registered (ACTIVE) team plays. Any other team sees a notice instead of its pages: before the draw, that it
+  // is not registered yet (an organiser registers it at the desk); once the problem cards are dealt, that it is out of
+  // the night. It does not see the market, the nav or anything about other teams.
   const notPlaying = team.status !== "ACTIVE";
   const outOfTheNight = notPlaying && !!event.drawn_at;
   const next = plan && !notPlaying ? nextAction(plan) : null;
@@ -121,9 +122,13 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
                 </dd>
               </div>
             </dl>
-            <StageStepper phase={status.phase} />
-            <MarketStrip eventId={event.id} />
-            <TeamNav phase={status.phase} />
+            {notPlaying ? null : (
+              <>
+                <StageStepper phase={status.phase} />
+                <MarketStrip eventId={event.id} />
+                <TeamNav phase={status.phase} />
+              </>
+            )}
           </header>
           <ActionBar task={next && next.href ? { title: next.title, href: next.href, linkLabel: next.linkLabel, due: next.due } : null} />
           <Alerts tasks={plan && !notPlaying ? alertTasks(plan) : []} />
@@ -150,10 +155,10 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
           {notPlaying ? (
             <p className="bg-slate-800 px-4 py-2 text-center text-sm font-medium text-white" data-testid="team-not-playing">
               {outOfTheNight
-                ? "Your team is not playing tonight: the problem cards were dealt to the active teams only."
-                : team.status === "BACKUP"
-                  ? "Your team is a backup: you play only if the organisers activate your team before the problem cards are dealt. Stay near the registration desk."
-                  : "Your team has been withdrawn from tonight's game. If this is a mistake, go to the registration desk before the problem cards are dealt."}
+                ? "Your team is not playing tonight: the problem cards were dealt to the registered teams only."
+                : team.status === "WITHDRAWN"
+                  ? "Your team has been withdrawn from tonight's game. If this is a mistake, go to the registration desk before the problem cards are dealt."
+                  : "Your team is not registered yet. Go to the registration desk: once an organiser registers your team, this page opens."}
             </p>
           ) : null}
           {team.disqualified ? (
@@ -175,15 +180,17 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
           <FeedbackBar className="mx-auto max-w-7xl px-4 pt-3" />
           {/* On a phone the tab bar covers the bottom of the screen: the page ends above it. */}
           <main className="mx-auto max-w-7xl px-4 pt-4 pb-24 sm:pb-4">
-            {outOfTheNight ? (
-              <p className="rounded-lg bg-white p-6 text-center text-slate-700 shadow-sm">
-                Thank you for coming. You can follow the night on the big screen.
+            {notPlaying ? (
+              <p className="rounded-lg bg-white p-6 text-center text-slate-700 shadow-sm" data-testid="team-locked">
+                {outOfTheNight
+                  ? "Thank you for coming. You can follow the night on the big screen."
+                  : "Your team's pages open as soon as your team is registered. This page updates by itself."}
               </p>
             ) : (
               children
             )}
           </main>
-          <TeamTabBar phase={status.phase} />
+          {notPlaying ? null : <TeamTabBar phase={status.phase} />}
         </div>
       </FeedbackProvider>
       </EventChannel>

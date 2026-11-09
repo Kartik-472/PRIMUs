@@ -1,7 +1,7 @@
 # PRIMUS platform
 
 The live web platform for PRIMUS, a one-night college business case competition (Friday 20 November 2026,
-20:00–06:00 IST, 50 teams of 3–4, plus 3 backup teams). Every team plays three rounds:
+20:00–06:00 IST, up to 200 teams of 3–4: only the teams an organiser registers play). Every team plays three rounds:
 
 1. **Build** (21:15–23:00): the lottery deals each team a problem card; it writes a PRD and names its company.
 2. **Rescue** (23:45–01:45): a crisis hits every company; each team rescues another team's company and writes a crisis
@@ -25,7 +25,7 @@ building are in [`PLAN.md`](PLAN.md).
 | Who | Where | What |
 |---|---|---|
 | Teams (one login per team, from its printed card) | `/team` | "Do this now" bar and alerts; Round 1 (problem card, twist, PRD editor that saves by itself, score and reason); Round 2 (crisis card, Q&A, solution editor); the market and every published solution; orders, portfolio and history; the public ledger; the leaderboard until 03:30; news; how judging works |
-| Organisers and the fairness officer | `/admin/<event>` | Phase control and **Event timing** (start and end the night, durations with a before/after preview, untimed phases, pause, resume, extend, manual or timed advance, early round close, timing log), **Teams** (activate backups and withdraw no-shows before the draw), **Access** (organisers give other people organiser access), lottery, rounds, judge (worker, backup model, re-runs, appeals, calibration), bulletins, content, ledger and corrections, results, fairness flags, exports, health |
+| Organisers and the fairness officer | `/admin/<event>` | Phase control and **Event timing** (start and end the night, durations with a before/after preview, untimed phases, pause, resume, extend, manual or timed advance, early round close, timing log), **Registration** (tick the teams that play before the draw; the rest cannot use the portal and are hidden), **Access** (organisers give other people organiser access), lottery, rounds, judge (worker, backup model, re-runs, appeals, calibration), bulletins, content, ledger and corrections, results, fairness flags, exports, health |
 | The projector (display account) | `/display/<event>` | Countdown, the twist, starting prices and top 5 PRDs, the crisis and rescue circle, rumours, the price board and leaderboard, the 02:45 reveal, the closing bell, the awards one by one |
 | Anyone | `/api/lottery-record?event=<event>` | The public lottery record after 23:45, checked with `pnpm verify-lottery` |
 

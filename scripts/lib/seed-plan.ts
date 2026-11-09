@@ -16,11 +16,14 @@ import { derivePassword } from "./credentials";
 
 /** Every team starts Round 3 with $50,000 of virtual cash, plus the Round 2 grant. */
 export const STARTING_CASH_CENTS = RULES.START_CASH; // $50,000; the Round 2 grant comes at 02:45
-/** The live night: 50 teams. A rehearsal can have from 3 up to MAX_TEAMS (150, for load tests). */
-export const LIVE_TEAMS = 50;
-export const MAX_TEAMS = 150;
-/** Backup teams printed for the live event, and the most any event may have. */
-export const LIVE_BACKUPS = 3;
+/**
+ * The live night: 200 team logins, every one unregistered until an organiser ticks it on the Registration tab before
+ * the draw. A rehearsal can have from 3 up to MAX_TEAMS, all registered.
+ */
+export const LIVE_TEAMS = 200;
+export const MAX_TEAMS = 200;
+/** Backup teams printed for the live event (none: the 200 logins are the spares), and the most any event may have. */
+export const LIVE_BACKUPS = 0;
 export const MAX_BACKUPS = 20;
 
 export interface MemberRow {
@@ -57,11 +60,13 @@ export interface SeedOptions {
   seedCommitment?: string;
   /** The letter of every team code. Default: "T" for the live event, "X" for a rehearsal. */
   codeLetter?: string;
-  /** Backup teams an organiser can activate before the draw (codes B001… live, Y001… in a rehearsal). Default 10 live, 0 in a rehearsal. */
+  /** Backup teams an organiser can activate before the draw (codes B001… live, Y001… in a rehearsal). Default none. */
   backupCount?: number;
   /** The letter of the backup codes. Default: "B" for the live event, "Y" for a rehearsal. */
   backupLetter?: string;
   backupRows?: TeamRow[];
+  /** Every team starts unregistered and plays only once an organiser registers it. Default: on live, off in a rehearsal. */
+  registration?: boolean;
 }
 
 export interface PlannedTeam {
@@ -95,6 +100,8 @@ export interface SeedPlan {
   crisis_cards: CrisisCard[];
   twist: PreparedBulletin | null;
   starting_cash_cents: number;
+  /** Teams start unregistered (status BACKUP) and an organiser registers the ones that play. */
+  registration: boolean;
 }
 
 export function buildSeedPlan(o: SeedOptions): SeedPlan {
@@ -182,6 +189,7 @@ export function buildSeedPlan(o: SeedOptions): SeedPlan {
     crisis_cards: o.crisisCards ?? [],
     twist: o.twist ?? null,
     starting_cash_cents: STARTING_CASH_CENTS,
+    registration: o.registration ?? !o.rehearsal,
   };
 }
 
@@ -195,7 +203,7 @@ export function toSeedPayload(plan: SeedPlan, userIds: ReadonlyMap<string, strin
   return {
     event: plan.event,
     schedule: plan.schedule,
-    teams: plan.teams.map((t) => ({ code: t.code, name: t.name, user_id: idOf(t.email), members: t.members, status: t.backup ? "BACKUP" : "ACTIVE" })),
+    teams: plan.teams.map((t) => ({ code: t.code, name: t.name, user_id: idOf(t.email), members: t.members, status: t.backup || plan.registration ? "BACKUP" : "ACTIVE" })),
     staff: plan.staff.map((s) => ({
       user_id: idOf(s.email),
       role: s.role,

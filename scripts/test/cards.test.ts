@@ -13,18 +13,18 @@ const plan = buildSeedPlan({
   rehearsal: false,
   clockSpeed: 1,
   startsAt: new Date("2026-11-20T14:30:00Z"),
-  teamCount: 50,
+  teamCount: 200,
   cardSecret: "test-secret-0123456789",
   emailDomain: "teams.example.org",
 });
 
 const cards = plan.teams.map((t) => ({ code: t.code, password: t.password, teamName: t.name }));
 
-test("53 cards (50 teams and 3 backups) print on 7 A4 pages, 8 per page", async () => {
+test("200 cards print on 25 A4 pages, 8 per page", async () => {
   const bytes = await renderLoginCards(cards, { eventName: plan.event.name, loginUrl: "https://msim.example.org/login" });
   const doc = await PDFDocument.load(bytes);
   expect(CARDS_PER_PAGE).toBe(8);
-  expect(doc.getPageCount()).toBe(7);
+  expect(doc.getPageCount()).toBe(25);
   const { width, height } = doc.getPage(0).getSize();
   expect(Math.round(width)).toBe(595);
   expect(Math.round(height)).toBe(842);

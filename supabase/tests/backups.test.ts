@@ -1,4 +1,4 @@
-// Backup teams (migration 20261108000018): seeded as backups, activated or withdrawn by an organiser before the draw, and only the
+// Backup teams and registration (migrations 20261108000018 and 20): seeded as backups, activated or withdrawn by an organiser before the draw, and only the
 // active teams play from the draw on. And organisers giving other people organiser access.
 
 import { randomUUID } from "node:crypto";
@@ -63,15 +63,46 @@ describe("backup teams", () => {
     expect(board.rows.map((r: { code: string }) => r.code).sort()).toEqual(playing.map((r) => r.code));
   });
 
-  test("the live seed: 50 playing teams and 3 backups (at most 20)", () => {
+  test("the live seed: 200 team logins, no backups by default (at most 20)", () => {
     const base = {
-      slug: "primus-test", name: "PRIMUS", rehearsal: false, clockSpeed: 1, startsAt: new Date(), teamCount: 50,
+      slug: "primus-test", name: "PRIMUS", rehearsal: false, clockSpeed: 1, startsAt: new Date(), teamCount: 200,
       cardSecret: "test-secret-0123456789", emailDomain: "teams.example.org",
     };
     const plan = buildSeedPlan(base);
-    expect(plan.teams.filter((t) => !t.backup)).toHaveLength(50);
-    expect(plan.teams.filter((t) => t.backup).map((t) => t.code)).toEqual(Array.from({ length: 3 }, (_, i) => `B${String(i + 1).padStart(3, "0")}`));
+    expect(plan.teams.filter((t) => !t.backup)).toHaveLength(200);
+    expect(plan.teams.filter((t) => t.backup)).toHaveLength(0);
+    expect(buildSeedPlan({ ...base, backupCount: 3 }).teams.filter((t) => t.backup).map((t) => t.code)).toEqual(["B001", "B002", "B003"]);
     expect(() => buildSeedPlan({ ...base, backupCount: 21 })).toThrow(/backup/);
+  });
+});
+
+describe("registration", () => {
+  test("an organiser registers exactly the ticked teams before the draw; unregistered teams cannot trade or play", async () => {
+    const n = await Night.create(db.pool, 6);
+    const [a, b, c, d, e, f] = n.codes;
+    // Only organisers.
+    await expect(n.call(n.team(a!), "set_registration", n.eventId, [a])).rejects.toThrow(/organiser/);
+    expect(await n.call(n.lead, "set_registration", n.eventId, [a, "Z999"])).toMatchObject({ ok: false, code: "NO_TEAM" });
+    // Tick four (lower case and spaces are fine): the other two are unregistered.
+    expect(await n.org("set_registration", n.eventId, [a, b!.toLowerCase(), ` ${c} `, d])).toMatchObject({ registered: 0, unregistered: 2, active: 4 });
+    expect(await n.q("select code, status from teams where event_id = $1 order by code", [n.eventId])).toEqual(
+      [a, b, c, d, e, f].map((code) => ({ code, status: [e, f].includes(code) ? "BACKUP" : "ACTIVE" })),
+    );
+    // Saving the same list again changes nothing and logs nothing new.
+    expect(await n.org("set_registration", n.eventId, [a, b, c, d])).toMatchObject({ registered: 0, unregistered: 0, active: 4 });
+    expect(await n.org("set_registration", n.eventId, [a, b, c, d, e])).toMatchObject({ registered: 1, unregistered: 0, active: 5 });
+    expect((await n.q("select count(*)::int as n from audit_log where event_id = $1 and action = 'registration'", [n.eventId]))[0].n).toBe(2);
+
+    // An unregistered team cannot place an order.
+    const company = (await n.one("select id from companies where event_id = $1 limit 1", [n.eventId])).id;
+    expect(await n.call(n.team(f!), "place_order", company, "BUY", 1, null)).toMatchObject({ ok: false, code: "NOT_REGISTERED" });
+
+    // At the draw only the registered teams get a company; then the list is fixed.
+    await n.advanceTo("BRIEFING");
+    await n.org("run_lottery", n.eventId, SEED, "3");
+    const playing = await n.q("select t.code from companies c join teams t on t.id = c.founder_team_id where c.event_id = $1 order by t.code", [n.eventId]);
+    expect(playing.map((r) => r.code)).toEqual([a, b, c, d, e]);
+    expect(await n.call(n.lead, "set_registration", n.eventId, [a, b, c, d, e, f])).toMatchObject({ ok: false, code: "TOO_LATE" });
   });
 });
 

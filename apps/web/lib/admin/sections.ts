@@ -21,7 +21,7 @@ export const ADMIN_GROUPS: Record<AdminGroup, string> = {
 export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { path: "", label: "Phase", group: "run" },
   { path: "/timing", label: "Timing", group: "run" },
-  { path: "/teams", label: "Teams", group: "run" },
+  { path: "/teams", label: "Registration", group: "run" },
   { path: "/lottery", label: "Lottery", group: "run" },
   { path: "/rounds", label: "Rounds", group: "run" },
   { path: "/judge", label: "Judge", group: "score" },
