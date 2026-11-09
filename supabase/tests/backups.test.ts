@@ -1,4 +1,4 @@
-// Backup teams (migration 16): seeded as backups, activated or withdrawn by an organiser before the draw, and only the
+// Backup teams (migration 20261108000018): seeded as backups, activated or withdrawn by an organiser before the draw, and only the
 // active teams play from the draw on. And organisers giving other people organiser access.
 
 import { randomUUID } from "node:crypto";

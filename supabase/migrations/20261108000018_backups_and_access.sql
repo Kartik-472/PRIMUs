@@ -304,7 +304,7 @@ as $$
   ),
   s as (
     select t.*, case when (select current_phase from e) >= 'MARKET_BLIND'
-                     then app.round3_points(t.portfolio, (select 10000000)) else 0 end as r3
+                     then app.round3_points(t.portfolio, app.funded_cents(t.id)) else 0 end as r3
       from t
   )
   select s.id, s.code, s.r1, s.r2, s.r3, s.r1 + s.r2 + s.r3, s.portfolio,
@@ -319,9 +319,9 @@ returns void
 language sql
 as $$
   insert into public.results (event_id, team_id, r1_points, r2_points, r3_points, portfolio_cents, return_bp, total, eligible, details, computed_at)
-  select p_event, x.id, x.r1, x.r2, app.round3_points(x.portfolio, 10000000), x.portfolio, app.return_bp(x.portfolio, 10000000),
-         x.r1 + x.r2 + app.round3_points(x.portfolio, 10000000), not x.disqualified,
-         jsonb_build_object('cash', x.cash_cents), now()
+  select p_event, x.id, x.r1, x.r2, app.round3_points(x.portfolio, app.funded_cents(x.id)), x.portfolio, app.return_bp(x.portfolio, app.funded_cents(x.id)),
+         x.r1 + x.r2 + app.round3_points(x.portfolio, app.funded_cents(x.id)), not x.disqualified,
+         jsonb_build_object('cash', x.cash_cents, 'funded', app.funded_cents(x.id)), now()
     from (select t.id, t.disqualified, t.cash_cents,
                  coalesce((select s.final_score from public.scores s join public.companies c on c.id = s.company_id
                             where c.founder_team_id = t.id and s.type = 'PRD'), 0)::int as r1,
