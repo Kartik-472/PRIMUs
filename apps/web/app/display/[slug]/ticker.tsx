@@ -9,16 +9,16 @@ import { clock } from "@/lib/format";
 import { supabaseServer } from "@/lib/supabase/server";
 
 const TONE: Record<TickerItem["tone"], string> = {
-  up: "bg-[var(--term-green)] text-black",
-  down: "bg-red-500 text-white",
-  news: "bg-[var(--term-amber)] text-black",
-  info: "bg-white/20 text-white",
+  up: "bg-phosphor text-ink",
+  down: "bg-danger text-ink",
+  news: "bg-warn text-ink",
+  info: "border-2 border-phosphor-dim text-phosphor",
 };
 
 export async function NewsTicker({ event, status }: { event: DisplayEvent; status: EventStatus }) {
-  if (!event.prices_started_at || phaseReached(status.phase, "AWARDS")) return null;
+  if (!phaseReached(status.phase, "READING") || phaseReached(status.phase, "AWARDS")) return null;
   const sb = await supabaseServer();
-  const [round, bulletins, deadlines] = await Promise.all([
+  const [round, bulletins, deals, companies, deadlines] = await Promise.all([
     sb
       .from("rounds")
       .select("number, round_prices(market_before, market_after, companies(ticker))")
@@ -28,18 +28,14 @@ export async function NewsTicker({ event, status }: { event: DisplayEvent; statu
       .order("number", { ascending: false })
       .limit(1)
       .maybeSingle<{ number: number; round_prices: { market_before: number | null; market_after: number; companies: { ticker: string | null } | null }[] }>(),
-    sb
-      .from("bulletins")
-      .select("kind, title")
-      .eq("event_id", event.id)
-      .not("published_at", "is", null)
-      .lte("published_at", status.server_time)
-      .order("published_at", { ascending: false })
-      .limit(4),
+    sb.from("bulletins").select("kind, title").eq("event_id", event.id).not("published_at", "is", null).order("published_at", { ascending: false }).limit(3),
+    sb.from("public_ledger").select("id", { count: "exact", head: true }).eq("event_id", event.id).eq("kind", "DEAL"),
+    sb.from("companies").select("id", { count: "exact", head: true }).eq("event_id", event.id),
     sb.from("deadlines").select("code, at").eq("event_id", event.id),
   ]);
-  for (const r of [round, bulletins, deadlines]) if (r.error) throw new Error(`Could not read the ticker: ${r.error.message}`);
+  for (const r of [round, bulletins, deals, companies, deadlines]) if (r.error) throw new Error(`Could not read the ticker: ${r.error.message}`);
   const items = tickerItems({
+    phase: status.phase,
     nowMs: Date.parse(status.server_time),
     lastRound: round.data
       ? {
@@ -50,6 +46,8 @@ export async function NewsTicker({ event, status }: { event: DisplayEvent; statu
         }
       : null,
     bulletins: (bulletins.data ?? []) as { kind: string; title: string }[],
+    dealsSigned: deals.count ?? 0,
+    squads: companies.count ?? 0,
     deadlines: (deadlines.data ?? []) as { code: DeadlineCode; at: string }[],
     clock: (iso) => clock(iso),
   });
@@ -62,7 +60,7 @@ export async function NewsTicker({ event, status }: { event: DisplayEvent; statu
   ));
   const seconds = Math.max(30, Math.round(items.reduce((n, it) => n + it.tag.length + it.text.length, 0) / 6));
   return (
-    <div className="h-[72px] shrink-0 overflow-hidden border-t-2 border-[var(--term-amber-dim)] bg-black" role="marquee" aria-label="News ticker" data-testid="news-ticker">
+    <div className="h-[72px] shrink-0 overflow-hidden border-t-4 border-phosphor-dim bg-ink" role="marquee" aria-label="News ticker" data-testid="news-ticker">
       <div className="msim-ticker-track flex h-full w-max items-center text-[32px] font-semibold" style={{ ["--ticker-seconds" as string]: `${seconds}s` }}>
         <div className="flex min-w-[1920px] items-center pl-12">{strip}</div>
         <div className="flex min-w-[1920px] items-center pl-12" aria-hidden>

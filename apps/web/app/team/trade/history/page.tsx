@@ -5,7 +5,7 @@ import { loadTradeData } from "@/lib/team/trade-data";
 import { STATUS_LABELS, orderHistory, type OrderLine } from "@/lib/team/trade";
 import { clock, count, money, signedMoney } from "@/lib/format";
 import { Badge, Panel, Table, Td } from "@/components/ui/ui";
-import { TradingNotYet } from "../not-yet";
+import { tradeGate } from "../gate";
 
 export const metadata: Metadata = { title: "Order history" };
 
@@ -14,15 +14,15 @@ export const metadata: Metadata = { title: "Order history" };
 // re-reads itself after every round.
 export default async function HistoryPage() {
   const ctx = await loadTeamContext();
-  const notYet = TradingNotYet({ phase: ctx.status.phase, title: "Order history" });
-  if (notYet) return notYet;
+  const gate = tradeGate(ctx);
+  if (gate) return gate;
   const data = await loadTradeData(ctx, { orders: "all" });
   const rounds = orderHistory(data.orders, data.rounds, data.companies);
 
   if (rounds.length === 0) {
     return (
       <Panel title="Order history">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted">
           No orders yet. Orders are placed under{" "}
           <Link href="/team/trade" className="underline">
             Orders
@@ -41,7 +41,7 @@ export default async function HistoryPage() {
           title={`Round ${r.number}`}
           actions={
             r.status === "CLEARED" ? (
-              <span className="text-sm text-slate-600">
+              <span className="text-sm text-paper">
                 Cash from fills <span className="font-mono font-semibold tabular-nums">{signedMoney(r.cash)}</span>
               </span>
             ) : r.status === "OPEN" ? (
@@ -75,7 +75,7 @@ function HistoryRow({ l, clearing }: { l: OrderLine; clearing: boolean }) {
       <Td mono className="text-right">
         {l.fillPrice === null ? "—" : money(l.fillPrice)}
       </Td>
-      <Td mono className={`text-right ${l.cash !== null && l.cash < 0 ? "text-red-700" : ""}`}>
+      <Td mono className={`text-right ${l.cash !== null && l.cash < 0 ? "text-danger-soft" : ""}`}>
         {l.cash === null ? "—" : signedMoney(l.cash)}
       </Td>
       <Td>
@@ -84,7 +84,7 @@ function HistoryRow({ l, clearing }: { l: OrderLine; clearing: boolean }) {
       <Td mono className="text-right">
         {money(l.entryPrice)}
       </Td>
-      <Td mono className="text-slate-600">
+      <Td mono className="text-paper">
         {clock(l.createdAt, true)}
       </Td>
     </tr>

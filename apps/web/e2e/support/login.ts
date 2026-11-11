@@ -17,8 +17,5 @@ export async function loginAsTeam(page: Page, ev: E2eEvent, code: string) {
   await page.getByLabel("Team code").fill(code);
   await page.getByLabel("Password").fill(ev.password(code));
   await page.getByRole("button", { name: "Sign in" }).click();
-  // A team opens on the welcome screen, then enters its pages.
-  await expect(page).toHaveURL(/\/welcome/);
-  await page.getByRole("link", { name: /Enter the night/ }).click();
   await expect(page).toHaveURL(/\/team/);
 }

@@ -1,188 +1,374 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { phaseReached } from "@msim/engine";
-import { loadTeamContext, type CompanyRow } from "@/lib/team/context";
-import { loadLatestBulletins, loadPlanFacts } from "@/lib/team/home-data";
-import { homePlan, type HomeTask, type TaskState } from "@/lib/team/home";
-import { clock, money } from "@/lib/format";
+import { loadTeamContext } from "@/lib/team/context";
+import { loadHomeData } from "@/lib/team/home-data";
+import { holdingsView, homePlan, type HomeTask, type TaskState } from "@/lib/team/home";
+import { clock, count, money } from "@/lib/format";
+import { AutoRefresh } from "@/lib/live/auto-refresh";
 import { RefreshAt } from "@/lib/live/refresh-at";
-import { Badge, Notice, Panel, Stat, buttonClass } from "@/components/ui/ui";
+import { Notice, Table, Td } from "@/components/ui/ui";
 import { Countdown } from "@/components/ui/countdown";
 import { BulletinItem } from "./bulletins/bulletin";
+import { inThisRound } from "@/lib/team/focus";
+import { Glyph } from "@/components/ui/matrix/glyph";
+import { CipherText } from "@/components/ui/matrix/cipher-text";
+import { DitherLayer } from "@/components/ui/matrix/dither-layer";
+import { scoreNow } from "@/lib/team/badges";
+import { loadBadges } from "@/lib/team/badges-data";
+import { BadgesCard } from "./badges-card";
+import { loadPulse } from "@/lib/team/pulse-data";
+import { PulseCard } from "./pulse-card";
+import { Celebrations } from "./celebrations";
+import { BIG_MOVE_BP } from "@/lib/team/pulse";
 
 export const metadata: Metadata = { title: "Home" };
 
-const STATE_BADGES: Record<TaskState, { tone: "amber" | "blue" | "green" | "slate"; label: string } | null> = {
-  todo: { tone: "amber", label: "To do" },
-  done: { tone: "green", label: "Done" },
+const STATE: Record<TaskState, { icon: string; label: string; chip: string } | null> = {
+  todo: { icon: "📝", label: "To do", chip: "text-warn" },
+  waiting: { icon: "⏳", label: "Waiting for partners", chip: "text-phosphor-mid" },
+  done: { icon: "✅", label: "Done", chip: "text-phosphor" },
   info: null,
 };
 
-// Home: what this team should do now and the next moments of the night, the company it built and the one it rescues,
-// its cash, and the latest news. Deadlines count down against the server clock; the page re-reads itself when one
-// passes and on every broadcast.
+// Home, kept simple: one big card with the thing to do now (or "all done"), a short checklist of the rest, three
+// tiles (cash, shares, squad), what comes next, and the latest news. Deadlines count down against the server clock;
+// the page re-reads itself when one passes, and while a squad window is open (a partner's confirmation or
+// submission sends no broadcast).
 export default async function TeamHome() {
   const ctx = await loadTeamContext();
-  const { team, built, rescued, status, event } = ctx;
-  const [facts, bulletins] = await Promise.all([loadPlanFacts(ctx), loadLatestBulletins(event.id)]);
-  const plan = homePlan(facts);
-  const nowMs = facts.nowMs;
+  const { team, squad, company, status } = ctx;
+  const data = await loadHomeData(ctx);
+  const plan = homePlan(data.facts);
+  const holdings = holdingsView(data.holdings, data.companies);
+  // The team's own score now, and its badges (both only about this team: the rankings stay hidden until the awards).
+  const score = scoreNow(team.track, team.cash, holdings.total, company?.ipo_price ?? null);
+  const badges = await loadBadges(score.value);
+  const nowMs = data.facts.nowMs;
   const times = [...plan.now.map((t) => t.due), ...plan.next.map((n) => n.at)]
     .filter((t): t is string => !!t && new Date(t).getTime() > nowMs)
     .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-  const market = phaseReached(status.phase, "REVEAL_1");
+  const squadWork = plan.now.some((t) => ["PROBLEM_PICK", "PITCH", "FEE", "DEAL", "PLAN", "FLASH"].includes(t.key) && t.state !== "done");
+  const marketOpen = phaseReached(status.phase, "READING");
+  // The last trading round's headline (public prices only), once the market is open.
+  const pulse = marketOpen ? await loadPulse(ctx.event.id) : null;
+  // The big card: the first task still to do (they come in the order they close); the rest form the checklist.
+  const main = plan.now.find((t) => t.state === "todo") ?? null;
+  // Coming up: only this round's deadlines (later rounds stay out of sight until they start).
+  const comingUp = plan.next.filter((n) => inThisRound(status.phase, n.key));
+  const rest = plan.now.filter((t) => t !== main);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <RefreshAt at={times[0] ?? null} />
+      <AutoRefresh everyMs={15_000} active={squadWork} />
 
-      <Panel title="Now">
-        {plan.now.length === 0 ? (
-          <p className="text-sm text-slate-700" data-testid="home-idle">
-            {plan.idle}
-          </p>
-        ) : (
-          <ul className="space-y-3" aria-label="What to do now">
-            {plan.now.map((t) => (
-              <TaskItem key={t.key} t={t} />
+      <section className="space-y-3">
+        {main ? (
+          <ul aria-label="What to do now">
+            <BigTask t={main} />
+            {rest.map((t) => (
+              <SmallTask key={t.key} t={t} />
             ))}
           </ul>
-        )}
-      </Panel>
-
-      <Panel title="Coming up">
-        {plan.next.length === 0 ? (
-          <p className="text-sm text-slate-500">Nothing else ahead tonight.</p>
         ) : (
-          <ul className="divide-y divide-slate-100" aria-label="Coming up">
-            {plan.next.map((n) => (
+          <>
+            <div className="mx-panel flex items-center gap-4 rounded-2xl p-5">
+              <span className="text-4xl text-phosphor" aria-hidden>
+                <Glyph e={plan.now.length ? "👍" : "☕"} />
+              </span>
+              <div>
+                <h2 className="text-xl font-extrabold text-phosphor glow">{plan.now.length ? "Nothing to press right now" : "Nothing to do yet"}</h2>
+                <p className="mt-0.5 text-base text-paper" data-testid="home-idle">
+                  {plan.idle}
+                </p>
+              </div>
+            </div>
+            {plan.now.length ? (
+              <ul aria-label="What to do now">
+                {plan.now.map((t) => (
+                  <SmallTask key={t.key} t={t} />
+                ))}
+              </ul>
+            ) : null}
+          </>
+        )}
+      </section>
+
+      <ScoreNow track={team.track} score={score} />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Tile icon="💵" label="Cash" tone="ring-phosphor">
+          <span data-testid="home-cash">{money(team.cash)}</span>
+          {team.track === "FINANCE" ? (
+            <span className="mt-1 block font-sans text-xs font-normal text-paper">
+              Collateral locked: <span className="font-mono">{money(team.collateral)}</span>
+            </span>
+          ) : null}
+        </Tile>
+        <Tile icon="📊" label={holdings.closing ? "Shares (closing prices)" : "Shares worth"} tone="ring-line">
+          <span data-testid="home-holdings-value">{money(holdings.total)}</span>
+          {holdings.unpriced ? (
+            <span className="mt-1 block font-sans text-xs font-normal text-paper">
+              {`${count(holdings.unpriced)} ${holdings.unpriced === 1 ? "line" : "lines"} without a price until the IPO`}
+            </span>
+          ) : null}
+        </Tile>
+        <Tile icon="👥" label="Your squad" tone="ring-line">
+          {squad ? (
+            <>
+              <span data-testid="home-squad">Squad {String(squad.number).padStart(2, "0")}</span>
+              <span className="mt-1 block font-sans text-sm font-normal text-paper" data-testid="home-company">
+                {company?.ticker ? (
+                  <>
+                    <span className="font-semibold">{company.name ?? company.ticker}</span>{" "}
+                    <span className="font-mono text-paper">({company.ticker})</span>
+                    {marketOpen ? (
+                      <>
+                        {" "}
+                        <Link href={`/team/market/${company.ticker}`} className="text-paper underline underline-offset-2">
+                          in the market
+                        </Link>
+                      </>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="text-paper">Named, with its ticker, on the pitch card (by the pitch deadline).</span>
+                )}
+              </span>
+            </>
+          ) : (
+            <span className="block font-sans text-sm font-normal text-paper" data-testid="home-squad">
+              Not drawn yet.
+              {data.facts.phaseStarts.SQUAD_DRAW ? ` Squads are drawn at ${clock(data.facts.phaseStarts.SQUAD_DRAW)}.` : ""}
+            </span>
+          )}
+        </Tile>
+      </div>
+
+      {pulse ? <PulseCard pulse={pulse} mine={company?.ticker ?? null} /> : null}
+      <Celebrations
+        teamId={team.id}
+        badges={(badges ?? []).filter((b) => b.earned).map((b) => ({ key: b.key, icon: b.icon, name: b.name }))}
+        move={(() => {
+          const own = pulse && company?.ticker ? pulse.moves.find((m) => m.ticker === company.ticker) : null;
+          return own && Math.abs(own.changeBp) >= BIG_MOVE_BP ? { round: pulse!.round, ticker: own.ticker, changeBp: own.changeBp } : null;
+        })()}
+      />
+
+      {badges ? <BadgesCard badges={badges} /> : null}
+
+      <Card icon="⏭️" title="Coming up this round">
+        {comingUp.length === 0 ? (
+          <p className="text-sm text-muted">Nothing else this round.</p>
+        ) : (
+          <ul className="divide-y divide-line" aria-label="Coming up">
+            {comingUp.map((n) => (
               <li key={n.key} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2 text-sm">
                 <span className="min-w-0">
                   {n.href ? (
-                    <Link href={n.href} className="font-medium text-slate-900 underline-offset-2 hover:underline">
+                    <Link href={n.href} className="font-semibold text-phosphor underline-offset-2 hover:underline">
                       {n.title}
                     </Link>
                   ) : (
-                    <span className="font-medium text-slate-900">{n.title}</span>
+                    <span className="font-semibold text-phosphor">{n.title}</span>
                   )}
                 </span>
-                <span className="whitespace-nowrap font-mono tabular-nums text-slate-600">
+                <span className="whitespace-nowrap font-mono tabular-nums text-paper">
                   {clock(n.at)} · in <Countdown to={n.at} passed="now" />
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </Panel>
+      </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Panel title="Your companies" className="lg:col-span-2">
-          <dl className="grid gap-4 text-sm sm:grid-cols-2">
-            <CompanyFact
-              label="You built"
-              testId="home-built"
-              c={built}
-              market={market}
-              empty={event.drawn_at ? "Name your company and claim its ticker in your PRD." : "You get your problem card when Build starts and build a company from it."}
-            />
-            <CompanyFact
-              label="You rescue"
-              testId="home-rescued"
-              c={rescued}
-              market={market}
-              empty="The rescue lottery at the crisis gives you another team's company to rescue."
-            />
-          </dl>
-          <p className="mt-3 text-xs text-slate-500">Your team can never trade the company it built or the one it rescues.</p>
-        </Panel>
-
-        <Panel title="Cash">
-          <Stat label="Cash" value={<span data-testid="home-cash">{money(team.cash)}</span>} hint={phaseReached(status.phase, "MARKET_BLIND") ? undefined : "Every team starts trading with $50,000, plus $1,000 per Round 2 point at 02:45."} />
-          {phaseReached(status.phase, "MARKET_BLIND") ? (
-            <Link href="/team/trade/positions" className={`mt-3 inline-block ${buttonClass.secondary}`}>
-              Your portfolio
-            </Link>
-          ) : null}
-        </Panel>
-      </div>
-
-      <Panel
+      <Card
+        icon="📣"
         title="Latest news"
-        actions={
-          <Link href="/team/bulletins" className="text-sm font-medium text-slate-700 underline underline-offset-2">
-            All news
+        action={
+          <Link href="/team/bulletins" className="text-sm font-semibold text-paper underline underline-offset-2">
+            All bulletins
           </Link>
         }
       >
-        {bulletins.length === 0 ? (
-          <p className="text-sm text-slate-500">Nothing yet.</p>
+        {data.bulletins.length === 0 ? (
+          <p className="text-sm text-muted">No bulletins yet.</p>
         ) : (
-          <ul className="space-y-3" aria-label="Latest news">
-            {bulletins.map((b) => (
+          <ul className="space-y-3" aria-label="Latest bulletins">
+            {data.bulletins.map((b) => (
               <li key={b.id}>
                 <BulletinItem b={b} clamp />
               </li>
             ))}
           </ul>
         )}
-      </Panel>
+      </Card>
+
+      <Card icon="🧾" title="Your shares">
+        {holdings.lines.length === 0 ? (
+          <p className="text-sm text-muted">{squad ? "No shares." : "Shares are issued at the squad draw."}</p>
+        ) : (
+          <Table head={["Company", "Lot", "Shares", "Price", "Value"]} label="Your holdings">
+            {holdings.lines.map((l) => (
+              <tr key={l.key}>
+                <Td mono className="font-semibold">
+                  {l.ticker ?? <span className="font-sans font-normal text-paper">{l.name}</span>}
+                </Td>
+                <Td>{l.lotLabel}</Td>
+                <Td mono className="text-right">
+                  {count(l.qty)}
+                </Td>
+                <Td mono className="text-right">
+                  {money(l.price)}
+                </Td>
+                <Td mono className={`text-right ${l.value !== null && l.value < 0 ? "text-danger-soft" : ""}`}>
+                  {money(l.value)}
+                </Td>
+              </tr>
+            ))}
+          </Table>
+        )}
+        {holdings.lines.some((l) => l.lot === "SHORT") ? (
+          <p className="mt-2 text-xs text-muted">A short is shares owed: its value is what covering it would cost now.</p>
+        ) : null}
+      </Card>
 
       {status.paused ? <Notice tone="amber">While the event is paused, countdowns keep running but no deadline passes; each moves later on resume.</Notice> : null}
     </div>
   );
 }
 
-function CompanyFact({ label, c, market, empty, testId }: { label: string; c: CompanyRow | null; market: boolean; empty: string; testId: string }) {
+/** The team's own value now and how it has moved since its start (a consultancy shows what it has earned). */
+function ScoreNow({ track, score }: { track: string; score: ReturnType<typeof scoreNow> }) {
+  if (score.value === null) return null;
+  const up = score.changeBp !== null && score.changeBp >= 0;
   return (
-    <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd data-testid={testId}>
-        {c?.ticker ? (
-          <>
-            <span className="font-semibold">{c.name ?? c.ticker}</span> <span className="font-mono text-slate-600">({c.ticker})</span>
-            {market ? (
-              <>
-                {" "}
-                <Link href={`/team/market/${c.ticker}`} className="text-slate-600 underline underline-offset-2">
-                  {c.market_price !== null ? money(c.market_price) : "in the market"}
-                </Link>
-              </>
-            ) : null}
-          </>
-        ) : c ? (
-          <span className="text-slate-600">No name or ticker yet.</span>
-        ) : (
-          <span className="text-slate-600">{empty}</span>
-        )}
-      </dd>
+    <section className="mx-panel glow-box flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" aria-label="Your score now" data-testid="score-now">
+      <div>
+        <p className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wide text-muted">
+          <span className="text-base text-phosphor" aria-hidden>
+            <Glyph e="📈" />
+          </span>
+          {track === "CONSULTING" ? "Earned so far" : "Your score now"}
+        </p>
+        <p className="mt-1 font-mono text-3xl font-extrabold tabular-nums text-phosphor glow" data-testid="score-now-value">
+          {money(score.value)}
+        </p>
+      </div>
+      {score.changeBp !== null ? (
+        <p className={`rounded-xl px-3 py-2 font-mono text-lg font-extrabold tabular-nums ring-1 ${up ? "text-phosphor ring-phosphor" : "text-danger-soft ring-danger"}`} data-testid="score-now-change">
+          {up ? "▲ +" : "▼ "}
+          {(score.changeBp / 100).toFixed(2)}% <span className="text-xs font-normal text-muted">since the start</span>
+        </p>
+      ) : (
+        <p className="text-sm text-muted">Only your own score: who is winning stays a secret until the awards!</p>
+      )}
+    </section>
+  );
+}
+
+function Tile({ icon, label, tone, children }: { icon: string; label: string; tone: string; children: ReactNode }) {
+  return (
+    <div className={`rounded-2xl bg-panel p-4 ring-1 ${tone}`}>
+      <p className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wide text-muted">
+        <span className="text-base text-phosphor" aria-hidden>
+          <Glyph e={icon} />
+        </span>
+        {label}
+      </p>
+      <div className="mt-1 font-mono text-2xl font-extrabold tabular-nums text-phosphor glow">{children}</div>
     </div>
   );
 }
 
-function TaskItem({ t }: { t: HomeTask }) {
-  const badge = STATE_BADGES[t.state];
+function Card({ icon, title, action, children }: { icon: string; title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <li className="rounded-md border border-slate-200 p-3" data-testid={`task-${t.key}`} data-state={t.state}>
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+    <section className="mx-panel rounded-2xl p-4" aria-label={title}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-lg font-extrabold text-phosphor glow">
+          <span aria-hidden>
+            <Glyph e={icon} />
+          </span>
+          <CipherText text={title} duration={450} />
+        </h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Due({ t, big = false }: { t: HomeTask; big?: boolean }) {
+  if (!t.due) return null;
+  return (
+    <p className={`whitespace-nowrap ${big ? "sm:text-right" : "text-right"}`}>
+      <span className={`block font-mono text-xs ${big ? "text-paper" : "text-muted"}`}>
+        {t.dueLabel} · {clock(t.due)}
+      </span>
+      <Countdown to={t.due} passed="closed" className={big ? "text-3xl font-extrabold text-phosphor glow" : "font-semibold text-phosphor"} />
+    </p>
+  );
+}
+
+/** The one thing to do now: big, with the time left and a big button. */
+function BigTask({ t }: { t: HomeTask }) {
+  return (
+    <li className="mx-panel glow-box relative mb-3 overflow-hidden rounded-2xl border-phosphor" data-testid={`task-${t.key}`} data-state={t.state}>
+      {/* A dithered strip on the top edge marks the one big card; the text sits below it on plain black. */}
+      <div aria-hidden className="relative h-3 border-b border-phosphor-dim">
+        <DitherLayer from="top" tone="bright" opacity={0.6} />
+      </div>
+      <div className="p-5">
+      {/* On a phone the countdown sits under the text, so the text keeps the full width. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold text-slate-900">{t.title}</h3>
-            {badge ? <Badge tone={badge.tone}>{badge.label}</Badge> : null}
-          </div>
-          <p className="mt-1 text-sm text-slate-600">{t.detail}</p>
-        </div>
-        {t.due ? (
-          <p className="whitespace-nowrap text-right text-sm">
-            <span className="block text-xs text-slate-500">{t.dueLabel} · {clock(t.due)}</span>
-            <Countdown to={t.due} passed="closed" className="font-semibold" />
+          <p className="font-mono text-xs font-bold uppercase tracking-widest text-phosphor-mid">
+            <Glyph e="📝" spoken /> Do this now
           </p>
-        ) : null}
+          <h3 className="mt-1 text-2xl font-extrabold leading-tight text-phosphor glow">{t.title}</h3>
+          <p className="mt-1 text-base text-paper">{t.detail}</p>
+        </div>
+        <Due t={t} big />
       </div>
       {t.href ? (
-        <Link href={t.href} className={`mt-2 block w-full text-center sm:inline-block sm:w-auto ${t.state === "todo" ? buttonClass.primary : buttonClass.secondary}`}>
+        <Link href={t.href} className="mx-key mx-key-solid mt-4 rounded-xl px-5 py-3 text-base font-extrabold">
           {t.linkLabel}
         </Link>
       ) : null}
+      </div>
+    </li>
+  );
+}
+
+/** Everything else for now, as a short checklist. */
+function SmallTask({ t }: { t: HomeTask }) {
+  const st = STATE[t.state];
+  return (
+    <li className="mx-panel mb-2 flex flex-wrap items-center gap-3 rounded-xl p-3" data-testid={`task-${t.key}`} data-state={t.state}>
+      <span className="text-2xl text-phosphor" aria-hidden>
+        <Glyph e={st?.icon ?? "ℹ️"} />
+      </span>
+      <div className="min-w-[12rem] flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-bold text-phosphor">{t.title}</h3>
+          {st ? <span className={`mx-tag text-xs ${st.chip}`}>{st.label}</span> : null}
+        </div>
+        <p className="text-sm text-paper">{t.detail}</p>
+      </div>
+      {/* On a phone the countdown and the button go on their own row, under the text. */}
+      <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
+        <Due t={t} />
+        {t.href ? (
+          <Link
+            href={t.href}
+            className={`mx-key rounded-xl px-3 py-2 text-sm ${t.state === "todo" ? "" : "mx-key-quiet"}`}
+          >
+            {t.linkLabel}
+          </Link>
+        ) : null}
+      </div>
     </li>
   );
 }

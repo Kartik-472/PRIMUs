@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { DEADLINE_LABELS, PHASE_LABELS, type DeadlineCode, type PhaseCode } from "@msim/engine";
 import { currentViewer } from "@/lib/auth/viewer";
 import { loadAdminEvent, loadEventStatus } from "@/lib/admin/event";
@@ -18,8 +17,8 @@ export const metadata: Metadata = { title: "Phase" };
 interface PhaseRow {
   code: PhaseCode;
   seq: number;
-  starts_at: string | null;
-  ends_at: string | null;
+  starts_at: string;
+  ends_at: string;
   started_at: string | null;
   ended_at: string | null;
 }
@@ -41,16 +40,16 @@ export default async function PhaseControl({ params }: PageProps<"/admin/[slug]"
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      {/* At the phase's end the gate and the controls change: re-read then, not only on the next broadcast. */}
+      {/* At the planned end the gate and the controls change: re-read then, not only on the next broadcast. */}
       <RefreshAt at={status.phase_ends_at} />
       <div className="min-w-0 space-y-6 lg:col-span-2">
         <Panel title="Now">
           <div className="grid gap-3 sm:grid-cols-4">
             <Stat label="Phase" value={PHASE_LABELS[status.phase]} hint={status.phase_started_at ? `since ${clock(status.phase_started_at)}` : undefined} />
             <Stat
-              label="Ends"
-              value={status.phase_ends_at ? <Countdown to={status.phase_ends_at} passed="due" /> : status.phase_untimed ? "Untimed" : "—"}
-              hint={status.phase_ends_at ? clock(status.phase_ends_at) : status.phase_untimed ? "until you end it" : status.phase === "SETUP" ? "starts when you start it" : undefined}
+              label="Planned end"
+              value={<Countdown to={status.phase_ends_at} passed="due" />}
+              hint={status.phase_ends_at ? clock(status.phase_ends_at) : undefined}
             />
             <Stat
               label="Trading"
@@ -69,11 +68,7 @@ export default async function PhaseControl({ params }: PageProps<"/admin/[slug]"
                 ) : undefined
               }
             />
-            <Stat
-              label="Mode"
-              value={status.auto_advance ? "Advance when timer expires" : "Manual advance"}
-              hint={status.paused ? `Paused since ${clock(status.paused_at)}` : status.ended_at ? `Night ended ${clock(status.ended_at)}` : undefined}
-            />
+            <Stat label="Auto-advance" value={status.auto_advance ? "On" : "Off"} hint={status.paused ? `Paused since ${clock(status.paused_at)}` : undefined} />
           </div>
           {blocked ? (
             <div className="mt-4">
@@ -84,26 +79,18 @@ export default async function PhaseControl({ params }: PageProps<"/admin/[slug]"
           ) : null}
         </Panel>
 
-        <Notice tone="blue">
-          Durations, previews of every moved deadline, untimed phases, early round closes and the timing log are on{" "}
-          <Link href={`/admin/${slug}/timing`} className="font-semibold underline underline-offset-2">
-            Event timing
-          </Link>
-          .
-        </Notice>
-
         {organiser ? (
           <Panel title="Controls">
             <div className="flex flex-wrap items-start gap-3">
               {next ? (
                 <ActionButton
                   action={advancePhase.bind(null, event.id, status.phase)}
-                  confirm={status.phase === "SETUP" ? "Click again to start the night" : `Click again: end ${PHASE_LABELS[status.phase]}, start ${PHASE_LABELS[next]}`}
+                  confirm={`Click again to start ${PHASE_LABELS[next]}`}
                   variant="primary"
                   disabled={!!blocked}
                   title={blocked ?? undefined}
                 >
-                  {status.phase === "SETUP" ? "Start the night" : `Advance to ${PHASE_LABELS[next]}`}
+                  Advance to {PHASE_LABELS[next]}
                 </ActionButton>
               ) : null}
               {status.paused ? (
@@ -133,9 +120,9 @@ export default async function PhaseControl({ params }: PageProps<"/admin/[slug]"
                 turnOff={setAutoAdvance.bind(null, event.id, false, false)}
               />
             </div>
-            <div className="mt-5 border-t border-slate-100 pt-4">
-              <h3 className="text-sm font-semibold text-slate-900">Extend</h3>
-              <p className="text-sm text-slate-600">The open round, or else the current phase, and everything after it move later.</p>
+            <div className="mt-5 border-t border-line pt-4">
+              <h3 className="text-sm font-semibold text-phosphor">Extend</h3>
+              <p className="text-sm text-paper">The current round or phase and everything after it move later.</p>
               <div className="mt-2 flex flex-wrap items-start gap-2">
                 {[5, 10, 15].map((m) => (
                   <ActionButton key={m} action={extendEvent.bind(null, event.id, m)} confirm={`Click again: +${m} min`}>
@@ -144,7 +131,7 @@ export default async function PhaseControl({ params }: PageProps<"/admin/[slug]"
                 ))}
                 <ActionForm action={extendEventForm.bind(null, event.id)} submit="Extend" confirm="Click again to extend by {minutes} min" className="flex items-end gap-2">
                   <label className="block">
-                    <span className="text-xs font-medium text-slate-600">Minutes (1–120)</span>
+                    <span className="text-xs font-medium text-paper">Minutes (1–120)</span>
                     <input name="minutes" type="number" min={1} max={120} required className={`${inputClass} w-28`} />
                   </label>
                 </ActionForm>
@@ -158,7 +145,7 @@ export default async function PhaseControl({ params }: PageProps<"/admin/[slug]"
         <Panel title="Rounds">
           <Table head={["Round", "Phase", "Opens", "Closes", "Status"]} empty="No rounds.">
             {(rounds.data ?? []).map((r) => (
-              <tr key={r.number} className={r.status === "OPEN" ? "bg-emerald-50" : ""}>
+              <tr key={r.number} className={r.status === "OPEN" ? "bg-phosphor/10" : ""}>
                 <Td mono>{r.number}</Td>
                 <Td>{PHASE_LABELS[r.phase as PhaseCode]}</Td>
                 <Td mono>{clock(r.opens_at)}</Td>
@@ -179,7 +166,7 @@ export default async function PhaseControl({ params }: PageProps<"/admin/[slug]"
               const current = p.code === status.phase;
               const done = !!p.ended_at;
               return (
-                <li key={p.code} className={`flex justify-between gap-2 rounded px-2 py-1 ${current ? "bg-slate-900 text-white" : done ? "text-slate-500" : ""}`}>
+                <li key={p.code} className={`flex justify-between gap-2 rounded px-2 py-1 ${current ? "bg-phosphor-deep text-phosphor" : done ? "text-muted" : ""}`}>
                   <span>{PHASE_LABELS[p.code]}</span>
                   <span className="font-mono tabular-nums">
                     {clock(p.started_at ?? p.starts_at)}–{clock(p.ended_at ?? p.ends_at)}
@@ -194,7 +181,7 @@ export default async function PhaseControl({ params }: PageProps<"/admin/[slug]"
             {(deadlines.data ?? []).map((d) => (
               <li key={d.code} className="flex justify-between gap-2">
                 <span>{DEADLINE_LABELS[d.code as DeadlineCode]}</span>
-                <span className="font-mono tabular-nums text-slate-700">
+                <span className="font-mono tabular-nums text-paper">
                   {clock(d.at)} · <Countdown to={d.at} passed="closed" />
                 </span>
               </li>

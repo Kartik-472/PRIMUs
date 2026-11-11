@@ -1,6 +1,6 @@
 "use client";
 
-// "Do this now": the one open task of this team that closes first, on every team page, with its countdown and a
+// "Do this now": the one open task of this team that closes first, on every team page but Home (its big card), with its countdown and a
 // button to the place that does it. Nothing to do: no bar.
 
 import Link from "next/link";
@@ -16,27 +16,29 @@ export interface BarTask {
 
 export function ActionBar({ task }: { task: BarTask | null }) {
   const path = usePathname();
-  if (!task) return null;
+  // Home shows the same task as its big card, so the bar would only repeat it there.
+  if (!task || path === "/team") return null;
   const here = path === task.href;
   return (
-    <div className="sticky top-0 z-30 border-b border-black bg-[var(--term-amber)] text-black" role="region" aria-label="Do this now" data-testid="action-bar">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
-        <span className="bg-black px-2 py-0.5 text-xs font-bold tracking-wide text-[var(--term-amber)] uppercase">Do this now</span>
+    <div className="sticky top-0 z-30 border-b border-phosphor bg-ink text-paper glow-box" role="region" aria-label="Do this now" data-testid="action-bar">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+        <span className="mx-tag text-xs text-phosphor glow">Do this now</span>
         {/* The title keeps at least 10rem: on a phone the countdown and the button wrap to a second line instead
             of squeezing it. */}
         <span className="min-w-[10rem] flex-1 font-semibold [overflow-wrap:anywhere]" data-testid="action-bar-title">
           {task.title}
         </span>
-        <span className="ml-auto flex items-center gap-3">
+        {/* On a phone the countdown and the button may wrap onto two lines rather than run past the screen edge. */}
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
           {task.due ? (
-            <span className="whitespace-nowrap text-black/70">
-              closes in <Countdown to={task.due} passed="now" className="font-bold text-black" />
+            <span className="whitespace-nowrap text-paper">
+              closes in <Countdown to={task.due} passed="now" className="font-semibold text-phosphor" />
             </span>
           ) : null}
           {here ? (
-            <span className="whitespace-nowrap border border-black px-3 py-1 text-xs font-semibold uppercase">You&apos;re on it</span>
+            <span className="mx-tag text-xs text-phosphor-mid">You&apos;re on it</span>
           ) : (
-            <Link href={task.href} className="whitespace-nowrap bg-black px-3 py-1 text-xs font-bold text-[var(--term-amber)] uppercase hover:bg-black/80">
+            <Link href={task.href} className="mx-key mx-key-solid whitespace-nowrap rounded px-3 py-1 text-xs">
               {task.linkLabel ?? "Open"} →
             </Link>
           )}
