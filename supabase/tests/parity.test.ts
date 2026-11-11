@@ -22,6 +22,7 @@ import {
   medianScore,
   mulRate,
   rescueCircle,
+  rescuePlan,
   returnBp,
   revealFactorBp,
   riseBp,
@@ -437,6 +438,19 @@ describe("lottery", () => {
     expect(map(crises.rows)).toEqual(Object.fromEntries(assignCrises(root, teams, deck)));
     const circle = await db.pool.query("select rescuer as a, founder as b from app.lottery_circle($1, $2)", [root, [...teams].reverse()]);
     expect(map(circle.rows)).toEqual(Object.fromEntries(rescueCircle(root, teams)));
+    // The organisers' pairs: none (the circle), two teams swapped, a ring among all but two teams, and every single pair
+    // (some of which force the lottery past its first step).
+    const singles = teams.slice(0, 8).flatMap((a) => teams.slice(0, 8).filter((b) => b !== a).map((b) => [{ rescuer: a, founder: b }]));
+    const plans: { rescuer: string; founder: string }[][] = [[], ...singles];
+    if (n >= 4) {
+      plans.push([{ rescuer: teams[0]!, founder: teams[1]! }, { rescuer: teams[1]!, founder: teams[0]! }]);
+      plans.push(teams.slice(0, n - 2).map((t, i) => ({ rescuer: t, founder: teams[(i + 1) % (n - 2)]! })));
+    }
+    for (const fixed of plans) {
+      const plan = await db.pool.query("select rescuer as a, founder as b from app.lottery_plan($1, $2, $3)", [root, [...teams].reverse(), JSON.stringify(fixed)]);
+      expect(map(plan.rows)).toEqual(Object.fromEntries(rescuePlan(root, teams, fixed)));
+      expect(plan.rows).toHaveLength(n);
+    }
   });
 
   test("the draws refuse what the engine refuses", async () => {
@@ -444,5 +458,11 @@ describe("lottery", () => {
     await expect(db.pool.query("select * from app.lottery_problems($1, $2, $3)", [root, ["A", "B", "C", "D"], ["1"]])).rejects.toThrow(/at least 2 cards/);
     await expect(db.pool.query("select * from app.lottery_problems($1, $2, $3)", [root, ["A", "A"], ["1"]])).rejects.toThrow(/duplicate/);
     await expect(db.pool.query("select * from app.lottery_circle($1, $2)", [root, ["A"]])).rejects.toThrow(/at least 2/);
+    const plan = (fixed: unknown) => db.pool.query("select * from app.lottery_plan($1, $2, $3)", [root, ["A", "B", "C"], JSON.stringify(fixed)]);
+    await expect(plan([{ rescuer: "A", founder: "A" }])).rejects.toThrow(/own company/);
+    await expect(plan([{ rescuer: "A", founder: "Z" }])).rejects.toThrow(/not playing/);
+    await expect(plan([{ rescuer: "A", founder: "B" }, { rescuer: "A", founder: "C" }])).rejects.toThrow(/two fixed pairs/);
+    await expect(plan([{ rescuer: "A", founder: "B" }, { rescuer: "B", founder: "A" }])).rejects.toThrow(/only its own company/);
+    expect(() => rescuePlan(root, ["A", "B", "C"], [{ rescuer: "A", founder: "B" }, { rescuer: "B", founder: "A" }])).toThrow(/only its own company/);
   });
 });

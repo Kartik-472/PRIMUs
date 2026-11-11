@@ -24,7 +24,7 @@ async function rows<T>(query: PromiseLike<{ data: T[] | null; error: { message: 
 export async function loadLotteryRows(sb: SupabaseClient, event: LotteryEventRow): Promise<LotteryRows | null> {
   if (!event.drawn_at || !event.seed_commitment || !event.dice) return null;
   const id = event.id;
-  const [secret, teams, problemCards, crisisCards, companies] = await Promise.all([
+  const [secret, teams, problemCards, crisisCards, companies, fixed] = await Promise.all([
     event.seed_revealed ? Promise.resolve({ data: { seed: event.seed_revealed }, error: null }) : sb.from("event_secrets").select("seed").eq("event_id", id).maybeSingle<{ seed: string }>(),
     rows<LotteryRows["teams"][number]>(sb.from("teams").select("id, code, name").eq("event_id", id), "the teams"),
     rows<LotteryRows["problemCards"][number]>(sb.from("problem_cards").select("id, number, sector, title").eq("event_id", id), "the problem deck"),
@@ -33,6 +33,8 @@ export async function loadLotteryRows(sb: SupabaseClient, event: LotteryEventRow
       sb.from("companies").select("founder_team_id, rescuer_team_id, problem_card_id, crisis_card_id, ticker, name").eq("event_id", id),
       "the companies",
     ),
+    // The pairs the organisers fixed (none on a database without the rescue-pairs update).
+    sb.from("events").select("rescue_fixed").eq("id", id).maybeSingle<{ rescue_fixed: LotteryRows["rescuePairs"] }>(),
   ]);
   if (secret.error) throw new Error(`Could not read the seed: ${secret.error.message}`);
   if (!secret.data) throw new Error("The lottery was drawn but its seed is not stored.");
@@ -44,6 +46,7 @@ export async function loadLotteryRows(sb: SupabaseClient, event: LotteryEventRow
     problemCards,
     crisisCards,
     companies,
+    rescuePairs: fixed.data?.rescue_fixed ?? [],
     crisisApplied: !!event.crisis_applied_at,
   };
 }

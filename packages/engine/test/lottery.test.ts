@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { checkLotteryRecord, type LotteryRecord } from "../src/lottery-record";
-import { Rng, assignCrises, dealProblemCards, drawLottery, rescueCircle, rootSeed, sha256Hex, verifyCommitment } from "../src/lottery";
+import { Rng, assignCrises, dealProblemCards, drawLottery, rescueCircle, rescuePlan, rootSeed, sha256Hex, verifyCommitment } from "../src/lottery";
 import { teamCode } from "../src/identity";
 
 const teams = Array.from({ length: 150 }, (_, i) => teamCode(i + 1));
@@ -91,6 +91,57 @@ describe("the draws", () => {
     expect([...b.circle].sort()).toEqual([...a.circle].sort());
     const c = drawLottery("primus-night", "5", teams, problems, crisisDeck);
     expect([...c.circle].sort()).not.toEqual([...a.circle].sort());
+  });
+  test("rescue pairs fixed by the organisers: kept as given, the lottery pairs the rest, and with none it is the circle", () => {
+    expect([...rescuePlan(root, teams)].sort()).toEqual([...rescueCircle(root, teams)].sort());
+    const fixed = [
+      { rescuer: "T001", founder: "T002" },
+      { rescuer: "T002", founder: "T001" },
+      { rescuer: "T010", founder: "T150" },
+    ];
+    const m = rescuePlan(root, teams, fixed);
+    expect(m.size).toBe(150);
+    for (const p of fixed) expect(m.get(p.rescuer)).toBe(p.founder);
+    for (const [rescuer, founder] of m) expect(rescuer).not.toBe(founder);
+    expect(new Set(m.values()).size).toBe(150);
+    expect([...rescuePlan(root, [...teams].reverse(), [...fixed].reverse())].sort()).toEqual([...m].sort());
+    // Every team paired by hand: nothing is left to the lottery.
+    const all = teams.map((t, i) => ({ rescuer: t, founder: teams[(i + 7) % teams.length]! }));
+    expect([...rescuePlan(root, teams, all)].sort()).toEqual(all.map((p) => [p.rescuer, p.founder]).sort());
+  });
+  test("rescue pairs: every way of fixing pairs among 5 teams leaves a valid pairing, except a lone team left with its own company", () => {
+    const five = ["A", "B", "C", "D", "E"];
+    let checked = 0;
+    const walk = (i: number, fixed: { rescuer: string; founder: string }[]) => {
+      if (i === five.length) {
+        const leftR = five.filter((t) => !fixed.some((p) => p.rescuer === t));
+        const leftF = five.filter((t) => !fixed.some((p) => p.founder === t));
+        if (leftR.length === 1 && leftR[0] === leftF[0]) {
+          expect(() => rescuePlan(root, five, fixed)).toThrow(/only its own company/);
+        } else {
+          const m = rescuePlan(root, five, fixed);
+          expect(m.size).toBe(5);
+          expect(new Set(m.values()).size).toBe(5);
+          for (const [r, f] of m) expect(r).not.toBe(f);
+          for (const p of fixed) expect(m.get(p.rescuer)).toBe(p.founder);
+        }
+        checked++;
+        return;
+      }
+      walk(i + 1, fixed);
+      for (const f of five) {
+        if (f === five[i] || fixed.some((p) => p.founder === f)) continue;
+        walk(i + 1, [...fixed, { rescuer: five[i]!, founder: f }]);
+      }
+    };
+    walk(0, []);
+    expect(checked).toBeGreaterThan(500);
+  });
+  test("rescue pairs: a team in two pairs, its own company, or a team not playing is refused", () => {
+    expect(() => rescuePlan(root, ["A", "B", "C"], [{ rescuer: "A", founder: "A" }])).toThrow(/own company/);
+    expect(() => rescuePlan(root, ["A", "B", "C"], [{ rescuer: "A", founder: "Z" }])).toThrow(/not playing/);
+    expect(() => rescuePlan(root, ["A", "B", "C"], [{ rescuer: "A", founder: "B" }, { rescuer: "A", founder: "C" }])).toThrow(/two fixed pairs/);
+    expect(() => rescuePlan(root, ["A", "B", "C"], [{ rescuer: "A", founder: "C" }, { rescuer: "B", founder: "C" }])).toThrow(/two fixed pairs/);
   });
   test("small rehearsal (3 teams) works; 1 team is refused", () => {
     const m = rescueCircle(root, ["X001", "X002", "X003"]);

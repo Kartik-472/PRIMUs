@@ -21,6 +21,8 @@ export interface LotteryRows {
     ticker: string | null;
     name: string | null;
   }[];
+  /** The rescue pairs the organisers fixed, as used at the crisis (the lottery paired every other team). */
+  rescuePairs?: { rescuer: string; founder: string }[];
   /** Has the 23:45 crisis (crisis cards and the rescue circle) been drawn? */
   crisisApplied: boolean;
 }
@@ -78,6 +80,7 @@ export function buildLotteryRecord(rows: LotteryRows): LotteryRecord {
     teams: views.map((v) => v.code),
     problemCards: [...rows.problemCards].sort((a, b) => a.number - b.number).map((c) => String(c.number)),
     crisisCards: [...rows.crisisCards].sort((a, b) => a.number - b.number).map((c) => String(c.number)),
+    ...(rows.rescuePairs?.length ? { rescuePairs: rows.rescuePairs } : {}),
     draws: views.map((v) => ({
       team: v.code,
       problem: v.problem ? String(v.problem.number) : "",
