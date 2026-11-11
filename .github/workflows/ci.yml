@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:15
@@ -40,7 +40,7 @@ jobs:
 
   e2e:
     # The control panel (and later the team portal and big screen) in a real browser against a local Supabase.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
