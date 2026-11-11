@@ -15,6 +15,7 @@ describe("control panel sections", () => {
     expect(adminFocus("SETUP")).toBe("");
     expect(adminFocus("BRIEFING")).toBe("/lottery");
     expect(adminFocus("CRISIS_QA")).toBe("/lottery");
+    expect(adminFocus("RESCUE")).toBe("/tickets");
     expect(adminFocus("JUDGING_2")).toBe("/judge");
     expect(adminFocus("MARKET")).toBe("/rounds");
     expect(adminFocus("SETTLEMENT")).toBe("/results");

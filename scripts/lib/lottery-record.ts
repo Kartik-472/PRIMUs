@@ -19,6 +19,10 @@ export function recordShapeProblems(json: unknown): string[] {
   if (!Array.isArray(draws) || !draws.every((d) => d && typeof d === "object" && ["team", "problem", "crisis", "rescues"].every((k) => typeof (d as Record<string, unknown>)[k] === "string"))) {
     problems.push(`"draws" must be a list of {team, problem, crisis, rescues}`);
   }
+  const pairs = r.rescuePairs;
+  if (pairs !== undefined && !(Array.isArray(pairs) && pairs.every((p) => p && typeof p === "object" && ["rescuer", "founder"].every((k) => typeof (p as Record<string, unknown>)[k] === "string")))) {
+    problems.push(`"rescuePairs" must be a list of {rescuer, founder}`);
+  }
   return problems;
 }
 

@@ -1,5 +1,6 @@
 // The published lottery record and its check: the seed matches the commitment made before the draw, and the problem
-// cards, crisis cards and rescue circle are exactly what the seed and the dice produce. Used by `pnpm verify-lottery`
+// cards, crisis cards and rescue pairs are exactly what the seed and the dice produce (given the pairs the organisers
+// fixed, which the record lists). Used by `pnpm verify-lottery`
 // (scripts/verify-lottery.ts) and by the control panel's independent check of the draw.
 
 import { drawLottery, verifyCommitment } from "./lottery";
@@ -14,6 +15,8 @@ export interface LotteryRecord {
   problemCards: string[];
   /** Crisis card numbers, as strings. */
   crisisCards: string[];
+  /** The pairs the organisers fixed before the crisis (rescuer → the founder whose company it rescues); the lottery paired the rest. */
+  rescuePairs?: { rescuer: string; founder: string }[];
   /** Per team: the problem card number it drew, the crisis card number its company drew, the team it rescues. */
   draws: { team: string; problem: string; crisis: string; rescues: string }[];
 }
@@ -38,6 +41,7 @@ export function checkLotteryRecord(record: LotteryRecord, published?: string): s
       record.teams,
       record.problemCards,
       record.crisisCards.map((n) => ({ id: n, number: Number(n) })),
+      record.rescuePairs ?? [],
     );
   } catch (err) {
     return [...problems, `the draw cannot be repeated: ${(err as Error).message}`];

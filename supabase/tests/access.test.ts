@@ -27,7 +27,7 @@ const ALL_TABLES = [
   "injection_logs", "judge_injection_checks", "appeals", "calibration_samples", "calibration_runs", "qa_questions",
   "qa_answers", "bulletins", "ledger_entries", "public_ledger", "corrections", "flags", "results",
   "leaderboard_frozen", "awards", "audit_log", "rate_limits", "error_log", "client_pings", "market_secrets",
-  "signups",
+  "signups", "rescue_plan", "chat_messages", "tickets",
 ];
 
 const t1 = () => user(fx.team(fx.codes[0]!).userId); // founded company 0, rescues company 1
@@ -133,7 +133,7 @@ describe("a team, all night", () => {
     for (const t of [
       "event_secrets", "judge_runs", "injection_logs", "judge_injection_checks", "appeals", "calibration_samples",
       "calibration_runs", "corrections", "flags", "leaderboard_frozen", "audit_log", "error_log", "client_pings",
-      "market_secrets", "signups",
+      "market_secrets", "signups", "rescue_plan",
     ]) {
       expect(await count(t1(), t), t).toBe(0);
     }
@@ -231,7 +231,7 @@ describe("staff and the projector", () => {
     expect(await count(display(), "companies", "event_id = $1", [fx.eventId])).toBe(fx.codes.length);
     expect(await count(display(), "companies", "event_id = $1", [other.eventId])).toBe(other.plan.teams.length);
     expect(await count(display(), "public_ledger")).toBe(1);
-    for (const t of ["teams", "members", "holdings", "orders", "drafts", "ledger_entries", "event_secrets", "market_secrets", "flags", "audit_log", "signups"]) {
+    for (const t of ["teams", "members", "holdings", "orders", "drafts", "ledger_entries", "event_secrets", "market_secrets", "flags", "audit_log", "signups", "rescue_plan", "chat_messages", "tickets"]) {
       expect(await count(display(), t), t).toBe(0);
     }
     expect(await count(display(), "problem_cards")).toBe(0);

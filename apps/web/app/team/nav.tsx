@@ -69,7 +69,7 @@ export function TeamNav({ phase }: { phase: PhaseCode }) {
   );
 }
 
-const ICON: Record<string, string> = { "": "⌂", "/build": "✎", "/rescue": "✚", "/qa": "?", "/market": "▤", "/trade": "⇅", "/ledger": "≡", "/leaderboard": "★", "/bulletins": "✉", "/judging": "§" };
+const ICON: Record<string, string> = { "": "⌂", "/build": "✎", "/rescue": "✚", "/qa": "?", "/chat": "✆", "/market": "▤", "/trade": "⇅", "/ledger": "≡", "/leaderboard": "★", "/bulletins": "✉", "/judging": "§" };
 
 // The phone's tab bar, fixed to the bottom within thumb reach: Home, the round under way, the market (or the news
 // before it opens) and the leaderboard (or how judging works), and More, which opens every section grouped by the

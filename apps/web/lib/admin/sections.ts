@@ -24,6 +24,8 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { path: "/signups", label: "Sign-ups", group: "run" },
   { path: "/teams", label: "Registration desk", group: "run" },
   { path: "/lottery", label: "Lottery", group: "run" },
+  { path: "/rescue", label: "Rescue pairs", group: "run" },
+  { path: "/tickets", label: "Tickets", group: "run" },
   { path: "/rounds", label: "Rounds", group: "run" },
   { path: "/judge", label: "Judge", group: "score" },
   { path: "/results", label: "Results", group: "score" },
@@ -46,6 +48,8 @@ export function adminFocus(phase: PhaseCode, fairness = false): string {
     case "BRIEFING":
     case "CRISIS_QA":
       return "/lottery";
+    case "RESCUE":
+      return "/tickets";
     case "JUDGING_1":
     case "JUDGING_2":
       return "/judge";

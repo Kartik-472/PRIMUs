@@ -129,6 +129,50 @@ export function rescueCircle(root: string, teamCodes: readonly string[]): Map<st
   return new Map(circle.map((team, k) => [team, circle[(k + 1) % circle.length]!]));
 }
 
+export interface RescuePair {
+  /** The team that rescues… */
+  rescuer: string;
+  /** …the company founded by this team. */
+  founder: string;
+}
+
+/**
+ * 23:45, with pairs fixed by the organisers: those pairs as given, and every other team paired by the lottery. The
+ * teams are shuffled into the rescue circle. The teams still without a company to rescue, and the companies still
+ * without a rescuer, are each taken in circle order, and each such team rescues the company one step on; if that would
+ * give a team its own company, two steps on, and so on. With no fixed pairs this is exactly rescueCircle().
+ * Mirrors app.lottery_plan in SQL.
+ * @returns rescuer team code → the founder team code of the company it rescues
+ */
+export function rescuePlan(root: string, teamCodes: readonly string[], fixed: readonly RescuePair[] = []): Map<string, string> {
+  assertDistinct(teamCodes, "team codes");
+  if (teamCodes.length < 2) throw new Error("the rescue circle needs at least 2 teams");
+  const playing = new Set(teamCodes);
+  for (const p of fixed) {
+    if (!playing.has(p.rescuer) || !playing.has(p.founder)) throw new Error("a fixed pair names a team that is not playing");
+    if (p.rescuer === p.founder) throw new Error("a team cannot rescue its own company");
+  }
+  const rescuers = new Set(fixed.map((p) => p.rescuer));
+  const founders = new Set(fixed.map((p) => p.founder));
+  if (rescuers.size !== fixed.length || founders.size !== fixed.length) throw new Error("a team is in two fixed pairs");
+
+  const rng = new Rng(root, "circle");
+  const circle = rng.shuffle(sorted(teamCodes));
+  const plan = new Map(fixed.map((p) => [p.rescuer, p.founder]));
+  const r = circle.filter((t) => !rescuers.has(t));
+  const f = circle.filter((t) => !founders.has(t));
+  const m = r.length;
+  if (m === 0) return plan;
+  for (let s = 1; s <= m; s++) {
+    const k = s % m; // 1, 2, …, m − 1, 0
+    if (r.every((team, i) => team !== f[(i + k) % m])) {
+      r.forEach((team, i) => plan.set(team, f[(i + k) % m]!));
+      return plan;
+    }
+  }
+  throw new Error("the fixed pairs leave one team with only its own company to rescue");
+}
+
 export interface LotteryDraw {
   root: string;
   problems: Map<string, string>;
@@ -143,12 +187,13 @@ export function drawLottery(
   teamCodes: readonly string[],
   problemCardIds: readonly string[],
   crisisDeck: readonly { id: string; number: number }[],
+  rescuePairs: readonly RescuePair[] = [],
 ): LotteryDraw {
   const root = rootSeed(seed, dice);
   return {
     root,
     problems: dealProblemCards(root, teamCodes, problemCardIds),
     crises: assignCrises(root, teamCodes, crisisDeck),
-    circle: rescueCircle(root, teamCodes),
+    circle: rescuePlan(root, teamCodes, rescuePairs),
   };
 }
