@@ -127,6 +127,12 @@ function Result({ result }: { result: ActionResult | null }) {
   );
 }
 
+/** The database labels a phase by its code; the panel uses the names everyone sees. */
+function changeLabel(c: TimingChange): string {
+  const code = c.key.startsWith("phase:") ? (c.key.slice(6) as PhaseCode) : null;
+  return code && PHASE_LABELS[code] ? `${phaseLabel(code)} ends` : c.label;
+}
+
 function delta(c: TimingChange): string {
   if (!c.from || !c.to) return c.to ? "now timed" : "untimed";
   const s = Math.round((Date.parse(c.to) - Date.parse(c.from)) / 1000);
@@ -151,7 +157,7 @@ function ChangesTable({ changes, empty = "No time moves." }: { changes: TimingCh
           {changes.map((c) => (
             <tr key={c.key} className={`border-t border-emerald-500/10 ${c.earlier ? "text-amber-200" : ""}`}>
               <td className="py-1 pr-3">
-                {c.label}
+                {changeLabel(c)}
                 {c.kind === "deadline" ? <span className="ml-2 rounded border border-emerald-500/40 px-1 text-[10px] uppercase">teams</span> : null}
               </td>
               <td className="py-1 pr-3 font-mono tabular-nums">{c.from ? clock(c.from, true) : "untimed"}</td>
@@ -312,9 +318,11 @@ export function TimingPanel({ eventId, organiser, rehearsal, status, phases, rou
   const untimedWidth = Math.max(timedTotal * 0.06, 60);
   const state = ended ? "ENDED" : !started ? "NOT STARTED" : status.paused ? "PAUSED" : "RUNNING";
 
-  const edit = (key: "phases" | "rounds", id: string, value: string) =>
+  const edit = (key: "phases" | "rounds", id: string, value: string | null) =>
     setDraft((d) => ({ ...d, [key]: { ...d[key], [id]: value } }));
-  const phaseValue = (p: PhaseTiming) => draft.phases[p.code] ?? toMinutes(p.duration_seconds);
+  /** Untimed: ticked in the draft, or untimed in the database and not changed. */
+  const isUntimed = (p: PhaseTiming) => (p.code in draft.phases ? draft.phases[p.code] === null : p.duration_seconds === null);
+  const phaseValue = (p: PhaseTiming) => (isUntimed(p) ? "" : (draft.phases[p.code] ?? toMinutes(p.duration_seconds)));
   const roundValue = (r: Round) => draft.rounds[String(r.number)] ?? toMinutes(r.duration_seconds);
 
   return (
@@ -341,7 +349,9 @@ export function TimingPanel({ eventId, organiser, rehearsal, status, phases, rou
               tone={remaining !== null && remaining <= 60_000 ? "warn" : status.phase_ends_at ? "on" : "dim"}
               value={ended ? "—" : status.phase_ends_at ? (remaining! > 0 ? span(remaining) : "0:00") : status.phase_untimed ? "untimed" : started ? "—" : "—"}
               hint={
-                status.paused
+                ended
+                  ? "the night has ended"
+                  : status.paused
                   ? `frozen: paused at ${clock(status.paused_at)}`
                   : status.phase_untimed
                     ? "until you end it"
@@ -400,6 +410,12 @@ export function TimingPanel({ eventId, organiser, rehearsal, status, phases, rou
           <div className="grid gap-5 xl:grid-cols-2">
             {/* ── The controls ── */}
             <Frame title="Controls">
+              {ended ? (
+                <p className="text-sm text-emerald-400" data-testid="timing-ended">
+                  The night ended at {clock(status.ended_at, true)}. Nothing can change now: the results, the ledger and the exports stay as they
+                  are.
+                </p>
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 {!started ? (
                   <MButton tone="primary" onRun={askAdvance} busy={busy} title="Shows what starts and every time that follows">
@@ -581,7 +597,7 @@ export function TimingPanel({ eventId, organiser, rehearsal, status, phases, rou
                     const done = !!p.ended_at;
                     const editable = organiser && !done && !FIXED_PHASES.includes(p.code) && !ended;
                     const value = phaseValue(p);
-                    const untimed = value === "";
+                    const untimed = isUntimed(p);
                     const err = computed.errors[`phase:${p.code}`];
                     const rowRounds = rounds.filter((r) => r.phase === p.code);
                     return (
@@ -629,7 +645,7 @@ export function TimingPanel({ eventId, organiser, rehearsal, status, phases, rou
                                 type="checkbox"
                                 checked={untimed}
                                 aria-label={`${PHASE_LABELS[p.code]} untimed`}
-                                onChange={(e) => edit("phases", p.code, e.target.checked ? "" : toMinutes(p.duration_seconds ?? 1800))}
+                                onChange={(e) => edit("phases", p.code, e.target.checked ? null : toMinutes(p.duration_seconds ?? 1800))}
                                 className="accent-emerald-500"
                               />
                             ) : p.code === "AWARDS" && p.duration_seconds === null ? (

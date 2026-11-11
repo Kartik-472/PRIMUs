@@ -11,7 +11,7 @@ const base = {
   rehearsal: false,
   clockSpeed: 1,
   startsAt: new Date("2026-11-20T14:30:00Z"),
-  teamCount: 150,
+  teamCount: 200,
   cardSecret: SECRET,
   emailDomain: "teams.example.org",
 };
@@ -48,13 +48,21 @@ describe("derived passwords", () => {
 });
 
 describe("seed plan", () => {
-  test("150 teams with codes T001–T150 and unique logins", () => {
+  test("200 team logins T001–T200, no backups, unique logins, all unregistered until an organiser registers them", () => {
     const plan = buildSeedPlan(base);
-    expect(plan.teams).toHaveLength(150);
+    expect(plan.teams).toHaveLength(200);
     expect(plan.teams[0]!.code).toBe("T001");
-    expect(plan.teams[149]!.code).toBe("T150");
-    expect(new Set(plan.teams.map((t) => t.email)).size).toBe(150);
-    expect(new Set(plan.teams.map((t) => t.password)).size).toBe(150);
+    expect(plan.teams[199]!.code).toBe("T200");
+    expect(plan.teams.some((t) => t.backup)).toBe(false);
+    expect(new Set(plan.teams.map((t) => t.email)).size).toBe(200);
+    expect(new Set(plan.teams.map((t) => t.password)).size).toBe(200);
+    expect(plan.registration).toBe(true);
+    const ids = new Map(plan.teams.map((t) => [t.email, "id-" + t.code]));
+    expect(new Set(toSeedPayload(plan, ids).teams.map((t) => t.status))).toEqual(new Set(["BACKUP"]));
+    // --all-registered, and every rehearsal, start registered.
+    const all = buildSeedPlan({ ...base, registration: false });
+    expect(new Set(toSeedPayload(all, ids).teams.map((t) => t.status))).toEqual(new Set(["ACTIVE"]));
+    expect(buildSeedPlan({ ...base, slug: "rehearsal-1", rehearsal: true, teamCount: 4 }).registration).toBe(false);
     expect(plan.teams.find((t) => t.code === "T007")!.email).toBe("t007@teams.example.org");
   });
 
@@ -71,14 +79,14 @@ describe("seed plan", () => {
     expect(JSON.stringify(plan.schedule)).not.toMatch(/_at"/);
   });
 
-  test("the live event must have 150 teams coded T; a rehearsal can be smaller and uses another letter", () => {
-    expect(() => buildSeedPlan({ ...base, teamCount: 10 })).toThrow(/exactly 150/);
+  test("the live event must have 200 teams coded T; a rehearsal can be smaller and uses another letter", () => {
+    expect(() => buildSeedPlan({ ...base, teamCount: 10 })).toThrow(/exactly 200/);
     expect(() => buildSeedPlan({ ...base, codeLetter: "X" })).toThrow(/start with T/);
     const plan = buildSeedPlan({ ...base, slug: "rehearsal-1", rehearsal: true, clockSpeed: 10, teamCount: 4 });
     expect(plan.teams.map((t) => t.code)).toEqual(["X001", "X002", "X003", "X004"]);
     expect(plan.event.clock_speed).toBe(10);
     expect(() => buildSeedPlan({ ...base, rehearsal: true, teamCount: 4, codeLetter: "T" })).toThrow(/another letter/);
-    expect(() => buildSeedPlan({ ...base, rehearsal: true, teamCount: 2 })).toThrow(/between 3 and 150/);
+    expect(() => buildSeedPlan({ ...base, rehearsal: true, teamCount: 2 })).toThrow(/between 3 and 200/);
   });
 
   test("team names and members come from the CSV in order; the rest get placeholders", () => {
@@ -99,8 +107,8 @@ describe("seed plan", () => {
     expect(plan.teams.find((t) => t.code === "T003")!.name).toBe("Team T003");
   });
 
-  test("a team has 3 or 4 members; the old track column is refused", () => {
-    expect(() => teamRowsFromCsv("team_name,member1_name,member2_name\nX,A,B\n")).toThrow(/3 or 4 members/);
+  test("a team has 2 to 5 members; the old track column is refused", () => {
+    expect(() => teamRowsFromCsv("team_name,member1_name\nX,A\n")).toThrow(/2 to 5 members/);
     expect(() => teamRowsFromCsv("track,team_name\nfinance,X\n")).toThrow(/no track column/);
   });
 

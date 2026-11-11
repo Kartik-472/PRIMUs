@@ -22,7 +22,7 @@ describe("seed_event: the live event", () => {
       slug: "primus-2026",
       rehearsal: false,
       startsAt: eventStartIST("2026-11-20"),
-      teamCount: 150,
+      teamCount: 200,
       problemCards: problemCardsFromCsv(readFileSync("seed/problem-cards.csv", "utf8")),
       crisisCards: crisisCardsFromCsv(readFileSync("seed/crisis-cards.csv", "utf8")),
       twist: bulletinFromCsv(readFileSync("seed/twist.csv", "utf8"), "twist"),
@@ -30,15 +30,15 @@ describe("seed_event: the live event", () => {
     eventId = ev.eventId;
   });
 
-  test("150 teams T001–T150, each with a login and one company it founds", async () => {
-    expect((await q("select count(*)::int as n from teams where event_id = $1"))[0].n).toBe(150);
-    expect((await q("select min(code) as lo, max(code) as hi from teams where event_id = $1"))[0]).toEqual({ lo: "T001", hi: "T150" });
+  test("200 team logins T001–T200, none registered yet, each with a login and one company it founds", async () => {
+    expect((await q("select count(*)::int as n from teams where event_id = $1 and status = 'ACTIVE'"))[0].n).toBe(0);
+    expect((await q("select min(code) as lo, max(code) as hi, count(*)::int as n from teams where event_id = $1 and status = 'BACKUP'"))[0]).toEqual({ lo: "T001", hi: "T200", n: 200 });
     expect(
       (await q("select count(*)::int as n from accounts a join teams t on t.id = a.team_id where t.event_id = $1"))[0].n,
-    ).toBe(150);
+    ).toBe(200);
     expect((await q("select count(*)::int as n, count(distinct founder_team_id)::int as f from companies where event_id = $1"))[0]).toEqual({
-      n: 150,
-      f: 150,
+      n: 200, // an unregistered team's company is removed at the draw
+      f: 200,
     });
     // Nothing is drawn, priced or rescued yet.
     expect(
@@ -100,7 +100,7 @@ describe("seed_event: the live event", () => {
 });
 
 describe("seed_event: rules", () => {
-  test("the live event needs exactly 150 teams; any event at least 3", async () => {
+  test("the live event needs 200 team logins; any event at least 3", async () => {
     const plan = buildSeedPlan({
       slug: "small",
       name: "x",
@@ -117,10 +117,10 @@ describe("seed_event: rules", () => {
     const payload = toSeedPayload(plan, ids);
     await expect(
       as(db.pool, service, (c) => c.query("select public.seed_event($1)", [{ ...payload, event: { ...payload.event, is_rehearsal: false } }])),
-    ).rejects.toThrow(/exactly 150 teams/);
+    ).rejects.toThrow(/needs 200 team logins/);
     await expect(
       as(db.pool, service, (c) => c.query("select public.seed_event($1)", [{ ...payload, teams: payload.teams.slice(0, 2) }])),
-    ).rejects.toThrow(/between 3 and 150/);
+    ).rejects.toThrow(/between 3 and 220/);
   });
 
   test("a rehearsal is purged with everything in it (auth users are kept)", async () => {

@@ -16,7 +16,7 @@ test("a team writes its PRD: it saves by itself, and the ticker is claimed", asy
   await page.goto("/team/build");
   await page.getByLabel("Company name").fill("Masala Labs Bites");
   await page.getByLabel("Ticker").fill("MLBT");
-  await page.getByLabel("Problem").fill("Snacks go stale within two days of opening in humid coastal towns.");
+  await page.getByRole("textbox", { name: "Problem", exact: true }).fill("Snacks go stale within two days of opening in humid coastal towns.");
   await expect(page.getByText("All changes saved")).toBeVisible({ timeout: 20_000 });
   expect(await ev.n.draftVersion(code, "PRD")).toBeGreaterThan(0);
   expect((await ev.n.company(code)).ticker).toBe("MLBT");

@@ -1,7 +1,7 @@
 # PRIMUS platform
 
 The live web platform for PRIMUS, a one-night college business case competition (Friday 20 November 2026,
-20:00–06:00 IST, 150 teams of 3–4). Every team plays three rounds:
+20:00–06:00 IST, up to 200 teams of 3–4: only the teams an organiser registers play). Every team plays three rounds:
 
 1. **Build** (21:15–23:00): the lottery deals each team a problem card; it writes a PRD and names its company.
 2. **Rescue** (23:45–01:45): a crisis hits every company; each team rescues another team's company and writes a crisis
@@ -17,6 +17,7 @@ building are in [`PLAN.md`](PLAN.md).
 |---|---|
 | Put the site online and prepare the event (no technical background needed) | [`docs/DEPLOY.md`](docs/DEPLOY.md) |
 | Run the night, and what to do when something fails | [`RUNBOOK.md`](RUNBOOK.md) |
+| Hand out the guides (illustrated PDFs) | [`docs/guides/PRIMUS-organiser-guide.pdf`](docs/guides/PRIMUS-organiser-guide.pdf), [`docs/guides/PRIMUS-team-guide.pdf`](docs/guides/PRIMUS-team-guide.pdf), the 4-page [`docs/guides/PRIMUS-participant-handout.pdf`](docs/guides/PRIMUS-participant-handout.pdf) |
 | Understand the AI judge | [`docs/JUDGE.md`](docs/JUDGE.md) and the prompts in [`prompts/`](prompts/README.md) |
 
 ## The four areas of the site
@@ -24,7 +25,7 @@ building are in [`PLAN.md`](PLAN.md).
 | Who | Where | What |
 |---|---|---|
 | Teams (one login per team, from its printed card) | `/team` | "Do this now" bar and alerts; Round 1 (problem card, twist, PRD editor that saves by itself, score and reason); Round 2 (crisis card, Q&A, solution editor); the market and every published solution; orders, portfolio and history; the public ledger; the leaderboard until 03:30; news; how judging works |
-| Organisers and the fairness officer | `/admin/<event>` | Phase control and **Event timing** (start and end the night, durations with a before/after preview, untimed phases, pause, resume, extend, manual or timed advance, early round close, timing log), lottery, rounds, judge (worker, backup model, re-runs, appeals, calibration), bulletins, content, ledger and corrections, results, fairness flags, exports, health |
+| Organisers and the fairness officer | `/admin/<event>` | Phase control and **Event timing** (start and end the night, durations with a before/after preview, untimed phases, pause, resume, extend, manual or timed advance, early round close, timing log), **Sign-ups** (the public `/register/<event>` page's registrations: a projection of who will come) and the **Registration desk** (confirm teams on the night by registration number or as walk-ins, edit members; only confirmed teams play and are shown), **Access** (organisers give other people organiser access), lottery, rounds, judge (worker, backup model, re-runs, appeals, calibration), bulletins, content, ledger and corrections, results, fairness flags, exports, health |
 | The projector (display account) | `/display/<event>` | Countdown, the twist, starting prices and top 5 PRDs, the crisis and rescue circle, rumours, the price board and leaderboard, the 02:45 reveal, the closing bell, the awards one by one |
 | Anyone | `/api/lottery-record?event=<event>` | The public lottery record after 23:45, checked with `pnpm verify-lottery` |
 
@@ -35,6 +36,7 @@ building are in [`PLAN.md`](PLAN.md).
 | `pnpm new-seed` | A secret lottery seed and the commitment to publish the day before |
 | `pnpm seed --slug … --date … --teams … --staff … --commitment …` | Creates the event, every login, the decks and the twist; prints the login cards to `out/` |
 | `pnpm cards … --only T007` | Reprints login cards |
+| `pnpm staff-sheet --slug …` | The staff logins as a printable PDF (the seed also writes it) |
 | `pnpm judge-worker --event <slug>` | Runs the AI judge from a laptop (the control panel can run it too) |
 | `pnpm human-scores --event <slug> --type PRD --file prd.csv` | The AI-outage fallback: three human judges' marks through the same queue |
 | `pnpm rehearse --slug rehearsal --autopilot` | 150 bot teams play a rehearsal night (with the organisers' part) |

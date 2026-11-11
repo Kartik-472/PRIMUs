@@ -42,9 +42,12 @@ export interface TimingChanges {
   extend_seconds?: number;
 }
 
-/** The panel's draft: minutes as typed, per row; "" for an untimed phase. Only rows the organiser touched are in it. */
+/**
+ * The panel's draft: minutes as typed, per row; null for a phase made untimed (an empty box is a box being typed in,
+ * not "untimed"). Only rows the organiser touched are in it.
+ */
 export interface TimingDraft {
-  phases: Partial<Record<PhaseCode, string>>;
+  phases: Partial<Record<PhaseCode, string | null>>;
   rounds: Record<string, string>;
   twist?: string;
   freeze?: string;
@@ -86,11 +89,11 @@ export function draftChanges(
   const changes: TimingChanges = {};
   const errors: Record<string, string> = {};
   let count = 0;
-  for (const [code, text] of Object.entries(draft.phases) as [PhaseCode, string][]) {
+  for (const [code, text] of Object.entries(draft.phases) as [PhaseCode, string | null][]) {
     const row = phases.find((p) => p.code === code);
     if (!row || FIXED_PHASES.includes(code) || row.ended_at) continue;
     let secs: number | null;
-    if (text === "") secs = null;
+    if (text === null) secs = null;
     else {
       const p = parseMinutes(text, PHASE_LIMITS);
       if ("error" in p) {
@@ -133,10 +136,14 @@ export function draftChanges(
   return { changes, count, errors };
 }
 
-/** How long the current phase has run, not counting pauses (frozen while paused). */
-export function elapsedMs(phase: Pick<PhaseTiming, "started_at" | "paused_seconds"> | undefined, now: number): number | null {
+/** How long the current phase has run, not counting pauses (frozen while paused, and fixed once the phase has ended). */
+export function elapsedMs(
+  phase: Pick<PhaseTiming, "started_at" | "paused_seconds"> & { ended_at?: string | null } | undefined,
+  now: number,
+): number | null {
   if (!phase?.started_at) return null;
-  return Math.max(0, now - Date.parse(phase.started_at) - phase.paused_seconds * 1000);
+  const until = phase.ended_at ? Math.min(now, Date.parse(phase.ended_at)) : now;
+  return Math.max(0, until - Date.parse(phase.started_at) - phase.paused_seconds * 1000);
 }
 
 /** "1:05:09" or "4:09" for a span; "—" for none. */

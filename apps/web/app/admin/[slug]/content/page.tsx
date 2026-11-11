@@ -26,7 +26,7 @@ export default async function ContentPage({ params }: { params: Promise<{ slug: 
     sb.from("problem_cards").select("number, sector, title, body").eq("event_id", event.id).order("number").limit(1000),
     sb.from("crisis_cards").select("category, number, title, body").eq("event_id", event.id).order("number").limit(1000),
     sb.from("bulletins").select("title, body, published_at, created_at").eq("event_id", event.id).eq("kind", "TWIST").limit(1),
-    sb.from("teams").select("id", { count: "exact", head: true }).eq("event_id", event.id),
+    sb.from("teams").select("id", { count: "exact", head: true }).eq("event_id", event.id).eq("status", "ACTIVE"),
   ]);
   for (const r of [problems, crises, twists, teams]) if (r.error) throw new Error(`Could not read the content: ${r.error.message}`);
   const twist = twists.data?.[0] ?? null;

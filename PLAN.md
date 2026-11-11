@@ -307,6 +307,27 @@ default durations (`buildSchedule`), not as clock times.
 - **Panel.** `/admin/<slug>/timing`, dark Matrix-inspired style scoped to the panel (`.mx-*` in `globals.css`); the
   rest of the control panel keeps its light style.
 
+## 7h. Backup teams and organiser access (migration 16)
+
+- **Backups.** The live seed prints 150 team cards and 10 backup cards (B001–B010; up to 20; rehearsal backups are
+  Y001…). A team is ACTIVE, BACKUP or WITHDRAWN. Until the lottery draw an organiser activates backups (walk-ins,
+  replacements) and withdraws no-shows (**Teams** tab, logged). At the draw the companies of non-active teams are
+  removed, so they get no card, crisis, rescue, price, points or award; the draw, the crisis, the rescue circle, the
+  lottery record, the leaderboard, the results and the deck check all count active teams only. Up to 160 can play.
+  A non-active team's screen says it is not playing (before the draw: wait at the desk; after: thank you).
+- **Access.** Any organiser can make another person an organiser (**Access** tab): the website's server creates the
+  login with the service key and shows a one-time password; the database checks the caller is an organiser and logs
+  the grant. The same page resets a password or removes access (never one's own; the last organiser stays). Fairness
+  and projector logins still come from the seed's staff list.
+
+## 7i. 50 teams (migration 17)
+
+The live night is 50 teams (T001–T050) and 3 backups (B001–B003), about 200 participants, instead of the brief's 150
+and 10. The seed command and the database's seeding check require exactly 50 for a live event; a rehearsal can still
+have 3 to 150 teams (the load test and the bots' practice night use 150). Every other rule scales with the number of
+playing teams: the problem deck needs one card per three teams, the 10 crisis types go to 5 companies each, and the
+rescue circle covers whoever plays.
+
 ## 8. Open questions
 
 All 13 in the brief were answered "defaults are fine" on 6 November. None open.

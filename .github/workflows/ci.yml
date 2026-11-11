@@ -40,7 +40,7 @@ jobs:
 
   e2e:
     # The control panel (and later the team portal and big screen) in a real browser against a local Supabase.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04)
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:

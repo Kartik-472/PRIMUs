@@ -50,6 +50,7 @@ export async function loadRoundsData(eventId: string, nowMs: number): Promise<Ro
       .from("teams")
       .select("id, code, cash_cents")
       .eq("event_id", eventId)
+      .eq("status", "ACTIVE") // registered teams only: the others cannot trade
       .order("code")
       .then((r) => must(r, "teams") as TeamRow[]),
     fetchAll<ClearingPriceRow>((from, to) =>

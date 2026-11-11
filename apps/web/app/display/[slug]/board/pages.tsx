@@ -82,7 +82,7 @@ export function BoardPages({
           {extra ? (
             extra.legend
           ) : pending ? (
-            "Starting prices are set when the PRD scores are revealed at 23:30."
+            "Starting prices are set when the PRD scores are revealed."
           ) : (
             <>
               {closed ? <span className="font-bold text-amber-300">Closing prices · </span> : null}
@@ -168,7 +168,7 @@ function Tile({ tile: t, trend, round, glow, size }: { tile: BoardTile; trend: n
       </div>
       {t.price === null ? (
         <p className={`leading-[1.2] font-semibold text-slate-400 ${size.pending}`} data-testid="tile-pending">
-          Starting price at 23:30
+          Starting price
         </p>
       ) : (
         <PriceRow price={money(t.price)} change={bp(t.changeBp)} tone={tone} fit={size.fit} />

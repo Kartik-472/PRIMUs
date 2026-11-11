@@ -7,6 +7,7 @@ import {
   bulletinFromCsv,
   crisisCardsFromCsv,
   problemCardsFromCsv,
+  LIVE_TEAMS,
   staffFromCsv,
   teamRowsFromCsv,
   type SeedOptions,
@@ -19,8 +20,12 @@ export const USAGE = `Options:
   --starts-at <ISO time>   exact planned start instead of --date (rehearsals: the autopilot starts the night then)
   --rehearsal              rehearsal event: X001… codes, may have fewer teams
   --speed <n>              clock speed: every default duration divided by it (default 1; rehearsal default 10)
-  --team-count <n>         number of teams (default 150; rehearsals may use fewer)
+  --team-count <n>         number of team logins (live: exactly 200, the default; rehearsals: 3 to 200)
   --code-letter <A-Z>      rehearsal team-code letter (default X)
+  --backups <n>            extra backup teams (B001… live, Y001… in a rehearsal; default 0)
+  --all-registered         every team starts registered (default live: none until an organiser ticks them on the
+                           Registration tab; a rehearsal always starts registered)
+  --backup-teams <csv>     names and members of the backup teams (optional, same columns as --teams)
   --teams <csv>            team names and members (optional)
   --staff <csv>            organiser, fairness officer and display logins (optional)
   --problems <csv>         problem deck (default seed/problem-cards.csv)
@@ -47,8 +52,11 @@ export function optionsFromArgs(args: Record<string, string | true>): SeedOption
     rehearsal,
     clockSpeed: Number(str("speed") ?? (rehearsal ? 10 : 1)),
     startsAt,
-    teamCount: Number(str("team-count") ?? 150),
+    teamCount: Number(str("team-count") ?? LIVE_TEAMS),
     codeLetter: str("code-letter"),
+    backupCount: str("backups") !== undefined ? Number(str("backups")) : undefined,
+    registration: args["all-registered"] === true ? false : undefined,
+    backupRows: str("backup-teams") ? teamRowsFromCsv(read(str("backup-teams")!)) : undefined,
     cardSecret: required("CARD_SECRET"),
     emailDomain: required("TEAM_EMAIL_DOMAIN"),
     teamRows: str("teams") ? teamRowsFromCsv(read(str("teams")!)) : undefined,

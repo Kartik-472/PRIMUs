@@ -14,9 +14,17 @@ import {
 } from "@msim/engine";
 import { derivePassword } from "./credentials";
 
-/** Every team starts Round 3 with $100,000 of virtual cash. */
+/** Every team starts Round 3 with $50,000 of virtual cash, plus the Round 2 grant. */
 export const STARTING_CASH_CENTS = RULES.START_CASH; // $50,000; the Round 2 grant comes at 02:45
-export const LIVE_TEAMS = 150;
+/**
+ * The live night: 200 team logins, every one unregistered until an organiser ticks it on the Registration tab before
+ * the draw. A rehearsal can have from 3 up to MAX_TEAMS, all registered.
+ */
+export const LIVE_TEAMS = 200;
+export const MAX_TEAMS = 200;
+/** Backup teams printed for the live event (none: the 200 logins are the spares), and the most any event may have. */
+export const LIVE_BACKUPS = 0;
+export const MAX_BACKUPS = 20;
 
 export interface MemberRow {
   full_name: string;
@@ -52,6 +60,13 @@ export interface SeedOptions {
   seedCommitment?: string;
   /** The letter of every team code. Default: "T" for the live event, "X" for a rehearsal. */
   codeLetter?: string;
+  /** Backup teams an organiser can activate before the draw (codes B001… live, Y001… in a rehearsal). Default none. */
+  backupCount?: number;
+  /** The letter of the backup codes. Default: "B" for the live event, "Y" for a rehearsal. */
+  backupLetter?: string;
+  backupRows?: TeamRow[];
+  /** Every team starts unregistered and plays only once an organiser registers it. Default: on live, off in a rehearsal. */
+  registration?: boolean;
 }
 
 export interface PlannedTeam {
@@ -60,6 +75,8 @@ export interface PlannedTeam {
   email: string;
   password: string;
   members: MemberRow[];
+  /** A backup: not playing unless an organiser activates it before the draw. */
+  backup: boolean;
 }
 
 export interface PlannedStaff extends StaffRow {
@@ -83,13 +100,15 @@ export interface SeedPlan {
   crisis_cards: CrisisCard[];
   twist: PreparedBulletin | null;
   starting_cash_cents: number;
+  /** Teams start unregistered (status BACKUP) and an organiser registers the ones that play. */
+  registration: boolean;
 }
 
 export function buildSeedPlan(o: SeedOptions): SeedPlan {
   if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(o.slug)) throw new Error(`bad event slug: ${o.slug}`);
   if (!o.rehearsal && o.teamCount !== LIVE_TEAMS) throw new Error(`the live event has exactly ${LIVE_TEAMS} teams`);
-  if (!Number.isInteger(o.teamCount) || o.teamCount < 3 || o.teamCount > LIVE_TEAMS) {
-    throw new Error(`between 3 and ${LIVE_TEAMS} teams`);
+  if (!Number.isInteger(o.teamCount) || o.teamCount < 3 || o.teamCount > MAX_TEAMS) {
+    throw new Error(`between 3 and ${MAX_TEAMS} teams`);
   }
   if (o.seedCommitment && !/^[0-9a-f]{64}$/.test(o.seedCommitment)) {
     throw new Error("seed commitment must be a lower-case SHA-256 hex digest");
@@ -105,13 +124,35 @@ export function buildSeedPlan(o: SeedOptions): SeedPlan {
     const code = teamCode(i, letter);
     const row = rows[i - 1];
     const members = (row?.members ?? []).filter((m) => m.full_name.trim() !== "");
-    if (members.length > 4) throw new Error(`team ${code}: at most four members`);
+    if (members.length > 5) throw new Error(`team ${code}: at most five members`);
     teams.push({
       code,
       name: row?.name?.trim() || `Team ${code}`,
       email: teamEmail(code, o.emailDomain),
       password: derivePassword(o.cardSecret, o.slug, code),
       members,
+      backup: false,
+    });
+  }
+
+  const backups = o.backupCount ?? (o.rehearsal ? 0 : LIVE_BACKUPS);
+  if (!Number.isInteger(backups) || backups < 0 || backups > MAX_BACKUPS) throw new Error(`between 0 and ${MAX_BACKUPS} backup teams`);
+  const backupLetter = o.backupLetter ?? (o.rehearsal ? "Y" : "B");
+  if (backupLetter === letter) throw new Error(`backup codes need another letter than ${letter}`);
+  const brows = o.backupRows ?? [];
+  if (brows.length > backups) throw new Error(`${brows.length} backup teams in the CSV, but only ${backups} backups`);
+  for (let i = 1; i <= backups; i++) {
+    const code = teamCode(i, backupLetter);
+    const row = brows[i - 1];
+    const members = (row?.members ?? []).filter((m) => m.full_name.trim() !== "");
+    if (members.length > 5) throw new Error(`team ${code}: at most five members`);
+    teams.push({
+      code,
+      name: row?.name?.trim() || `Backup ${code}`,
+      email: teamEmail(code, o.emailDomain),
+      password: derivePassword(o.cardSecret, o.slug, code),
+      members,
+      backup: true,
     });
   }
 
@@ -148,6 +189,7 @@ export function buildSeedPlan(o: SeedOptions): SeedPlan {
     crisis_cards: o.crisisCards ?? [],
     twist: o.twist ?? null,
     starting_cash_cents: STARTING_CASH_CENTS,
+    registration: o.registration ?? !o.rehearsal,
   };
 }
 
@@ -161,7 +203,7 @@ export function toSeedPayload(plan: SeedPlan, userIds: ReadonlyMap<string, strin
   return {
     event: plan.event,
     schedule: plan.schedule,
-    teams: plan.teams.map((t) => ({ code: t.code, name: t.name, user_id: idOf(t.email), members: t.members })),
+    teams: plan.teams.map((t) => ({ code: t.code, name: t.name, user_id: idOf(t.email), members: t.members, status: t.backup || plan.registration ? "BACKUP" : "ACTIVE" })),
     staff: plan.staff.map((s) => ({
       user_id: idOf(s.email),
       role: s.role,
@@ -177,17 +219,17 @@ export function toSeedPayload(plan: SeedPlan, userIds: ReadonlyMap<string, strin
 
 // ───────────────────────────── CSV inputs ─────────────────────────────
 
-/** Columns: team_name, member1_name, member1_roll, … member4_name, member4_roll. */
+/** Columns: team_name, member1_name, member1_roll, … member5_name, member5_roll. */
 export function teamRowsFromCsv(text: string): TeamRow[] {
   return parseCsvObjects(text).map((r, i) => {
     if (r.track !== undefined) throw new Error("teams CSV: PRIMUS teams have no track column (every team plays all three rounds)");
     const members: MemberRow[] = [];
-    for (let m = 1; m <= 4; m++) {
+    for (let m = 1; m <= 5; m++) {
       const full_name = r[`member${m}_name`] ?? "";
       if (full_name) members.push({ full_name, roll_number: r[`member${m}_roll`] || undefined });
     }
-    if (members.length > 0 && members.length < 3) {
-      throw new Error(`teams CSV row ${i + 2}: a team has 3 or 4 members (found ${members.length})`);
+    if (members.length === 1) {
+      throw new Error(`teams CSV row ${i + 2}: a team has 2 to 5 members (found ${members.length})`);
     }
     return { name: r.team_name, members };
   });
