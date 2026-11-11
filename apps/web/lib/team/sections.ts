@@ -23,6 +23,7 @@ export const TEAM_SECTIONS: readonly TeamSection[] = [
   { path: "/build", label: "Round 1: PRD", short: "PRD", from: "BRIEFING", group: "r1" },
   { path: "/rescue", label: "Round 2: Rescue", short: "Rescue", from: "CRISIS_QA", group: "r2" },
   { path: "/qa", label: "Q&A", short: "Q&A", from: "CRISIS_QA", group: "r2" },
+  { path: "/chat", label: "Rescue chats", short: "Chats", from: "CRISIS_QA", group: "r2" },
   { path: "/market", label: "Market", short: "Market", from: "REVEAL_1", group: "r3" },
   { path: "/trade", label: "Round 3: Trade", short: "Trade", from: "MARKET_BLIND", group: "r3" },
   { path: "/ledger", label: "Ledger", short: "Ledger", from: "MARKET_BLIND", group: "r3" },
@@ -97,7 +98,8 @@ export function phoneTabs(phase: PhaseCode): TeamSection[] {
   const by = (path: string) => TEAM_SECTIONS.find((s) => s.path === path)!;
   const stage = currentStage(phase).key;
   const round = stage === "r1" ? "/build" : stage === "r2" ? "/rescue" : stage === "r3" || stage === "end" ? "/trade" : "/build";
-  const third = phaseReached(phase, "REVEAL_1") ? "/market" : "/bulletins";
+  // In Round 2 the rescue chats are where teams talk; otherwise the market (or the news before it opens).
+  const third = stage === "r2" && !phaseReached(phase, "JUDGING_2") ? "/chat" : phaseReached(phase, "REVEAL_1") ? "/market" : "/bulletins";
   const fourth = third === "/bulletins" ? "/judging" : "/leaderboard";
   return [by(""), by(round), by(third), by(fourth)];
 }

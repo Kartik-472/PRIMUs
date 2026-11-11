@@ -8,6 +8,7 @@ describe("team sections", () => {
       "Round 1: PRD",
       "Round 2: Rescue",
       "Q&A",
+      "Rescue chats",
       "Market",
       "Round 3: Trade",
       "Ledger",
@@ -52,7 +53,8 @@ describe("stages of the night", () => {
 
   test("the phone shows four tabs, the round under way second", () => {
     expect(phoneTabs("SETUP").map((s) => s.short)).toEqual(["Home", "PRD", "News", "Judging"]);
-    expect(phoneTabs("RESCUE").map((s) => s.short)).toEqual(["Home", "Rescue", "Market", "Ranks"]);
+    expect(phoneTabs("RESCUE").map((s) => s.short)).toEqual(["Home", "Rescue", "Chats", "Ranks"]);
+    expect(phoneTabs("JUDGING_2").map((s) => s.short)).toEqual(["Home", "Rescue", "Market", "Ranks"]);
     expect(phoneTabs("MARKET").map((s) => s.short)).toEqual(["Home", "Trade", "Market", "Ranks"]);
   });
 });

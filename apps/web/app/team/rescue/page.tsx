@@ -70,7 +70,11 @@ export default async function RescuePage() {
             <Link href="/team/qa" className="font-semibold underline">
               Ask its founders on the Q&amp;A board
             </Link>{" "}
-            (while the board is open; every question and answer is public).
+            (while the board is open; every question and answer is public), or privately in{" "}
+            <Link href="/team/chat" className="font-semibold underline">
+              your rescue chats
+            </Link>
+            .
           </p>
           {theirPrd ? (
             <details className="mt-3 rounded-md bg-slate-50 p-3 text-sm ring-1 ring-inset ring-slate-200">
@@ -88,6 +92,10 @@ export default async function RescuePage() {
             Team <span className="font-mono font-semibold">{rescuer ?? "—"}</span> rescues it. Answer their questions on the{" "}
             <Link href="/team/qa" className="underline">
               Q&amp;A board
+            </Link>{" "}
+            or in{" "}
+            <Link href="/team/chat" className="underline">
+              your rescue chats
             </Link>
             . Your own Round 2 points come from the solution you write, never from how well your company is rescued.
           </p>
