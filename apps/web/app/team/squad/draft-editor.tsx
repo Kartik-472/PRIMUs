@@ -1,6 +1,6 @@
 "use client";
 
-// The squad's draft of one submission (pitch card, rescue plan or flash answer), edited from several screens: the
+// The squad's draft of one submission (PRD, rescue plan or flash answer), edited from several screens: the
 // template's fields with a word counter per field and in total, Save (one click: a draft can be changed until the
 // deadline) and Submit (two clicks: it replaces the version that will be judged). Every save names the version it
 // was based on. A version saved elsewhere meanwhile is merged section by section with what was typed here: the other
@@ -59,6 +59,8 @@ export interface DraftEditorProps {
   storageKey: string;
   /** The submitted version that will be judged, if any. */
   submitted: { content: Record<string, unknown>; submittedAt: string } | null;
+  /** A hired firm writing for its client: the client's company (save_draft_for / submit_for). */
+  companyId?: string;
 }
 
 const noSubscribe = () => () => {};
@@ -127,7 +129,7 @@ export function DraftEditor(props: DraftEditorProps) {
     const base = state.base.version;
     dispatch({ type: "saving", fields: sent });
     start(async () => {
-      const r = (await safely(() => saveDraft(type, sent, base))) as DraftResult;
+      const r = (await safely(() => saveDraft(type, sent, base, props.companyId))) as DraftResult;
       deliver(r);
       dispatch(afterResult(r));
       setSaveResult(r);
@@ -139,7 +141,7 @@ export function DraftEditor(props: DraftEditorProps) {
     if (sent) dispatch({ type: "saving", fields: sent });
     setSubmitting(true);
     try {
-      const r = (await safely(() => submitDraft(type, sent, state.base.version))) as DraftResult;
+      const r = (await safely(() => submitDraft(type, sent, state.base.version, props.companyId))) as DraftResult;
       deliver(r);
       dispatch(afterResult(r, "submit"));
       setSaveResult(null);

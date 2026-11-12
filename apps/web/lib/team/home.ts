@@ -6,8 +6,10 @@
 import {
   DEADLINE_LABELS,
   LOT_TYPES,
+  subroundDeadlineLabels,
   phaseIndex,
   phaseReached,
+  planOf,
   value,
   type DeadlineCode,
   type LotType,
@@ -15,7 +17,7 @@ import {
   type SubmissionType,
   type Track,
 } from "@msim/engine";
-import { clock, count } from "@/lib/format";
+import { clock, count, money } from "@/lib/format";
 
 export interface HomeDeadline {
   code: DeadlineCode;
@@ -43,7 +45,7 @@ export interface HomeProgress {
   /** One case for every squad: a single card was dealt and chosen at the draw, so there is no pick. */
   oneCase?: boolean;
   /** The squad has a current (on-time) submission of this type. */
-  submitted: Record<SubmissionType, boolean>;
+  submitted: Partial<Record<SubmissionType, boolean>>;
   fee: FeeProgress | null;
   deal: DealProgress | null;
   /** Consulting: calls made and call slots, per window. */
@@ -54,7 +56,41 @@ export interface HomeProgress {
   unanswered: number;
 }
 
+/** Where a team stands in a PRIMUS event's Round 2 (crises 1–4) or Round 3 (5), from team_plan_facts. */
+export interface PrimusFacts {
+  /** The crisis under way: 1–4 in Round 2 (the latest revealed), 5 in Round 3; null before the first reveal. */
+  k: number | null;
+  /** The sub-round whose hiring is open now, or null. */
+  hiringK: number | null;
+  /** Writing for crisis k is open (the plan, the firm's memo, the Round 3 solution). */
+  workOpen: boolean;
+  /** Product: the firm hired for crisis k. */
+  engagement?: { firm: string; cash: number; shares: number; escrow: "HELD" | "RELEASED" | "REFUNDED" } | null;
+  /** Open offers waiting for this team's answer, and for the other side's. */
+  offersMyTurn?: number;
+  offersWaiting?: number;
+  /** Product: the firms it can rate now. */
+  rate?: { k: number; firm: string; rating: number | null }[];
+  /** Product, Round 3: its place in the draft (null before the draft is set). */
+  draft?: {
+    pickNo: number;
+    picked: boolean;
+    byDefault: boolean;
+    statement: { number: number; title: string } | null;
+    myTurn: boolean;
+    closesAt: string | null;
+    ahead: number;
+  } | null;
+  /** Consulting: the profile has a headline. */
+  profileSet?: boolean;
+  /** Consulting: its clients of crisis k, and whether the memo for each is in. */
+  clients?: { companyId: string; ticker: string | null; name: string | null; submitted: boolean }[];
+}
+
 export interface HomeFacts {
+  /** The event's format: a PRIMUS event plays Rounds 2 and 3 as crises, hiring and the draft. */
+  format?: "CLASSIC" | "PRIMUS";
+  primus?: PrimusFacts | null;
   track: Track;
   phase: PhaseCode;
   paused: boolean;
@@ -66,7 +102,7 @@ export interface HomeFacts {
   ipoAllocated: boolean;
   marketClosed: boolean;
   flashBulletinPublished: boolean;
-  released: Record<SubmissionType, boolean>;
+  released: Partial<Record<SubmissionType, boolean>>;
   deadlines: readonly HomeDeadline[];
   /** Planned start of each phase. */
   phaseStarts: Partial<Record<PhaseCode, string>>;
@@ -89,6 +125,8 @@ export interface HomeTask {
   due: string | null;
   dueLabel: string | null;
   state: TaskState;
+  /** Words for the state chip when the usual ones do not fit (say, "Waiting for your turn"). */
+  stateLabel?: string;
 }
 
 export interface UpcomingItem {
@@ -112,12 +150,15 @@ const PROBLEM = "/team/squad/problem";
 const PITCH = "/team/squad/pitch";
 const PLAN = "/team/squad/plan";
 const FLASH = "/team/squad/flash";
+const MEMO = "/team/squad/memo";
 const RESCUE = "/team/rescue";
 const CALLS = "/team/calls";
 const TRADE = "/team/trade";
 const IPO = "/team/trade/ipo";
 /** Each submission's own form. */
 const FORM: Record<"PITCH" | "PLAN" | "FLASH", string> = { PITCH, PLAN, FLASH };
+const CRISIS_ROOM = "/team/crisis";
+const FIRMS = "/team/firms";
 const QA = "/team/qa";
 const BOOK = "/team/market/book";
 
@@ -139,16 +180,22 @@ export function deadlinePassed(f: Pick<HomeFacts, "deadlines" | "paused" | "paus
   return f.nowMs > t;
 }
 
+/** A PRIMUS event's sub-round deadlines of these kinds (k = 1–5; there is no REVEAL_5). */
+function subroundCodes(kinds: string[]): DeadlineCode[] {
+  return [1, 2, 3, 4, 5].flatMap((k) => kinds.map((d) => `${d}_${k}`)).filter((c) => c !== "REVEAL_5") as DeadlineCode[];
+}
+
 /** Deadlines that concern each track (FLASH_TIER is a price event, not something a team does). */
 export const TRACK_DEADLINES: Record<Track, readonly DeadlineCode[]> = {
-  PRODUCT: ["PROBLEM_PICK", "PITCH", "FEE", "DEAL", "PLAN", "FLASH_BULLETIN", "FLASH"],
-  CONSULTING: ["PROBLEM_PICK", "PITCH", "CALL_1", "FEE", "DEAL_BONUS", "DEAL", "PLAN", "CALL_2", "FLASH_BULLETIN", "FLASH", "CALL_3"],
-  FINANCE: ["IPO_BIDS", "DEAL", "FLASH_BULLETIN"],
+  PRODUCT: ["PROBLEM_PICK", "PITCH", "FEE", "DEAL", "PLAN", "FLASH_BULLETIN", "FLASH", ...subroundCodes(["REVEAL", "HIRE", "DUE", "RATE"]), "DRAFT"],
+  CONSULTING: ["PROBLEM_PICK", "PITCH", "CALL_1", "FEE", "DEAL_BONUS", "DEAL", "PLAN", "CALL_2", "FLASH_BULLETIN", "FLASH", "CALL_3", ...subroundCodes(["HIRE", "DUE"])],
+  FINANCE: ["IPO_BIDS", "DEAL", "FLASH_BULLETIN", ...subroundCodes(["REVEAL"])],
 };
 
 const UPCOMING_TITLES: Record<DeadlineCode, string> = {
+  ...subroundDeadlineLabels(),
   PROBLEM_PICK: "Problem card pick closes",
-  PITCH: "Pitch card due",
+  PITCH: "PRD due",
   CALL_1: "Call 1 due",
   IPO_BIDS: "IPO bids close",
   FEE: "Advisor fee due (otherwise $22,500 cash is paid by default)",
@@ -184,6 +231,8 @@ function hrefFor(track: Track, code: DeadlineCode): string | null {
     case "FLASH_BULLETIN":
     case "FLASH_TIER":
       return "/team/bulletins";
+    default: // PRIMUS sub-rounds: the crisis room
+      return track === "FINANCE" ? null : CRISIS_ROOM;
   }
 }
 
@@ -196,7 +245,7 @@ function closedEarly(f: HomeFacts, code: DeadlineCode): boolean {
     case "PITCH":
       return phaseIndex(f.phase) > phaseIndex("BUILD");
     case "CALL_1":
-      return f.released.PITCH;
+      return !!f.released.PITCH;
     case "IPO_BIDS":
       return phaseIndex(f.phase) > phaseIndex("IPO") || f.ipoAllocated;
     case "DEAL_BONUS":
@@ -206,11 +255,13 @@ function closedEarly(f: HomeFacts, code: DeadlineCode): boolean {
     case "CALL_2":
     case "FLASH":
     case "FLASH_TIER":
-      return f.released.FLASH;
+      return !!f.released.FLASH;
     case "FLASH_BULLETIN":
       return f.flashBulletinPublished;
     case "CALL_3":
       return f.marketClosed;
+    default:
+      return false;
   }
 }
 
@@ -234,34 +285,43 @@ export function windowOpen(f: HomeFacts, code: DeadlineCode): boolean {
     case "PLAN":
       return f.drawn && open && between(f.phase, "CRISIS", "RESCUE_2");
     case "CALL_2":
-      return f.released.PLAN && open && !f.released.FLASH;
+      return !!f.released.PLAN && open && !f.released.FLASH;
     case "FLASH":
       return f.flashBulletinPublished && !f.released.FLASH && open;
     case "CALL_3":
-      return f.released.FLASH && open && !f.marketClosed;
+      return !!f.released.FLASH && open && !f.marketClosed;
     case "FLASH_BULLETIN":
     case "FLASH_TIER":
       return false;
+    default: // PRIMUS sub-rounds
+      return open && (f.phase === "PRESSURE" || f.phase === "SATURATION");
   }
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 
-function task(f: HomeFacts, code: DeadlineCode | null, t: Omit<HomeTask, "due" | "dueLabel" | "linkLabel"> & { linkLabel?: string }): HomeTask {
+function task(
+  f: HomeFacts,
+  code: DeadlineCode | null,
+  t: Omit<HomeTask, "due" | "dueLabel" | "linkLabel"> & { linkLabel?: string; dueLabel?: string },
+): HomeTask {
   const due = code ? deadlineAt(f, code) : null;
   return {
     ...t,
     linkLabel: t.href ? (t.linkLabel ?? LINK_LABELS[t.href] ?? "Open") : null,
     due,
-    dueLabel: code ? DEADLINE_LABELS[code] : null,
+    dueLabel: code ? (t.dueLabel ?? DEADLINE_LABELS[code]) : null,
   };
 }
 
 const LINK_LABELS: Record<string, string> = {
   [SQUAD]: "Open Squad",
   [PROBLEM]: "Open the problem cards",
-  [PITCH]: "Open the pitch card",
+  [PITCH]: "Open the PRD",
+  [MEMO]: "Open the crisis memo",
   [PLAN]: "Open the rescue plan",
+  [CRISIS_ROOM]: "Open the crisis room",
+  [FIRMS]: "See the firms",
   [FLASH]: "Open the flash answer",
   [IPO]: "Open IPO bids",
   [RESCUE]: "Open Rescue",
@@ -325,12 +385,12 @@ function submissionTask(f: HomeFacts, type: "PITCH" | "PLAN" | "FLASH"): HomeTas
   const at = clock(deadlineAt(f, type));
   const writes = f.track === "PRODUCT" || type !== "PITCH";
   const titles = {
-    PITCH: writes ? "Write and submit your pitch card" : "Help with the pitch card",
+    PITCH: writes ? "Write and submit your PRD" : "Help with the PRD",
     PLAN: "Write and submit the rescue plan",
     FLASH: "Answer the flash news",
   };
   const about = {
-    PITCH: "Company name, a 3–4 letter ticker and the six template sections, up to 400 words.",
+    PITCH: "Company name, a 3–4 letter ticker and the seven PRD sections, up to 800 words.",
     PLAN: `Up to 500 words, written by your Product and Consulting teams together. A late plan scores 0; without a fully signed deal at ${clock(deadlineAt(f, "DEAL"))} the score is capped at 50.`,
     FLASH: "Up to 100 words, answering the bulletin.",
   };
@@ -349,6 +409,21 @@ function submissionTask(f: HomeFacts, type: "PITCH" | "PLAN" | "FLASH"): HomeTas
   return task(f, type, { key: type, title: titles[type], detail, href: FORM[type], state });
 }
 
+/** Round 1 Consultancy: the crisis memo, written by the Consulting team alone and due with the PRD. */
+function memoTask(f: HomeFacts): HomeTask {
+  const at = clock(deadlineAt(f, "PITCH"));
+  const submitted = f.progress.submitted.MEMO;
+  return task(f, "PITCH", {
+    key: "MEMO",
+    title: "Write and submit your crisis memo",
+    detail: submitted
+      ? `Submitted. You can resubmit until ${at}; the last version on time is judged.`
+      : `Read the case and recommend one way out, in six sections and up to 500 words. Its score sets your firm's reputation bonus. Due ${at}.`,
+    href: MEMO,
+    state: submitted ? "done" : "todo",
+  });
+}
+
 function callTask(f: HomeFacts, n: 1 | 2 | 3): HomeTask {
   const code = `CALL_${n}` as const;
   const { made, total } = f.progress.calls[n];
@@ -365,6 +440,218 @@ function callTask(f: HomeFacts, n: 1 | 2 | 3): HomeTask {
   });
 }
 
+// ───────────────────────────── PRIMUS Rounds 2 and 3 ─────────────────────────────
+
+const stars = (n: number) => `${n} ${n === 1 ? "star" : "stars"}`;
+const feeText = (cash: number, shares: number) =>
+  shares === 0 ? money(cash) : cash === 0 ? `${count(shares)} shares` : `${money(cash)} + ${count(shares)} shares`;
+/** "crisis 2" or "Round 3", inside a sentence. */
+const crisisWords = (k: number) => (k === 5 ? "Round 3" : `crisis ${k}`);
+
+/**
+ * A PRIMUS event's tasks in Round 2 (each crisis: hire a firm, write, rate) and Round 3 (the draft, hire, the
+ * solution). The windows mirror app.hiring_subround, app.subround_open and rate_firm; the database decides again.
+ * Returns the tasks with the deadline each one answers (so "coming up" does not repeat it).
+ */
+export function primusTasks(f: HomeFacts): { code: DeadlineCode | null; task: HomeTask }[] {
+  const p = f.primus;
+  if (f.format !== "PRIMUS" || !p || (f.phase !== "PRESSURE" && f.phase !== "SATURATION")) return [];
+  const out: { code: DeadlineCode | null; task: HomeTask }[] = [];
+  const add = (code: DeadlineCode | null, t: Parameters<typeof task>[2]) => out.push({ code, task: task(f, code, t) });
+  const k = p.k;
+  const hire = p.hiringK !== null ? (`HIRE_${p.hiringK}` as DeadlineCode) : null;
+  const due = k !== null ? (`DUE_${k}` as DeadlineCode) : null;
+
+  if (f.track === "PRODUCT") {
+    // Round 3 starts with the draft.
+    if (f.phase === "SATURATION" && p.draft) {
+      const d = p.draft;
+      if (d.picked) {
+        add(null, {
+          key: "DRAFT",
+          title: "Your problem statement",
+          detail: d.statement
+            ? `You work on statement ${d.statement.number}: ${d.statement.title}${d.byDefault ? " (given to you: no pick in time)" : ""}.`
+            : "Your statement is set.",
+          href: CRISIS_ROOM,
+          state: "done",
+        });
+      } else if (d.myTurn) {
+        out.push({
+          code: "DRAFT",
+          task: {
+            key: "DRAFT",
+            title: "Your pick: choose a problem statement",
+            detail: "Pick now. If your 20 seconds run out, you get the statement with the fewest companies.",
+            href: CRISIS_ROOM,
+            linkLabel: "Pick a statement",
+            due: d.closesAt,
+            dueLabel: "Your pick ends",
+            state: "todo",
+          },
+        });
+      } else {
+        add("DRAFT", {
+          key: "DRAFT",
+          title: "The draft: wait for your pick",
+          detail: `${d.ahead === 1 ? "1 company picks" : `${count(d.ahead)} companies pick`} before you (the lowest score so far goes first). Read the statements while you wait.`,
+          href: CRISIS_ROOM,
+          state: "waiting",
+          stateLabel: "Waiting for your turn",
+        });
+      }
+    }
+    if (k !== null && hire && p.hiringK === k) {
+      const closes = clock(deadlineAt(f, hire));
+      const e = p.engagement;
+      if (e) {
+        add(hire, {
+          key: "HIRE",
+          title: "Hire a consulting firm",
+          detail: `You hired ${e.firm} for ${feeText(e.cash, e.shares)}. The fee is kept safe until the due time: the firm gets it only if it sends its memo.`,
+          href: CRISIS_ROOM,
+          state: "done",
+        });
+      } else if ((p.offersMyTurn ?? 0) > 0) {
+        add(hire, {
+          key: "HIRE",
+          title: "Answer the firm's counter-offer",
+          detail: `A firm changed your offer. Accept, decline or counter before hiring closes at ${closes}.`,
+          href: CRISIS_ROOM,
+          state: "todo",
+        });
+      } else if ((p.offersWaiting ?? 0) > 0) {
+        add(hire, {
+          key: "HIRE",
+          title: "Hire a consulting firm",
+          detail: `Offer sent. The firm has until ${closes} to answer; you can make offers to other firms too.`,
+          href: CRISIS_ROOM,
+          state: "waiting",
+          stateLabel: "Waiting for the firm",
+        });
+      } else {
+        add(hire, {
+          key: "HIRE",
+          title: "Hire a consulting firm",
+          detail: `Choose a firm and offer it cash, shares or both${k === 5 ? " (worth 5–20% of your cash)" : ""}. Its memo helps your ${k === 5 ? "solution" : "plan"} score higher. Hiring closes at ${closes}.`,
+          href: CRISIS_ROOM,
+          linkLabel: "Choose a firm",
+          state: "todo",
+        });
+      }
+    }
+    if (k !== null && due && p.workOpen) {
+      const type = planOf(k);
+      const at = clock(deadlineAt(f, due));
+      const sent = !!f.progress.submitted[type];
+      add(due, {
+        key: "PLAN_K",
+        title: k === 5 ? "Write and submit your solution" : `Write and submit your plan for crisis ${k}`,
+        detail: sent
+          ? `Submitted. You can send a better version until ${at}; the last one on time is judged.`
+          : k === 5
+            ? `Up to 600 words: how you solve your problem statement. Your hired firm can write it with you. Due ${at}.`
+            : `Up to 500 words: how your company gets through this crisis. Due ${at}. No plan scores 0 and your price falls.`,
+        href: CRISIS_ROOM,
+        linkLabel: k === 5 ? "Write the solution" : "Write the plan",
+        state: sent ? "done" : "todo",
+      });
+    }
+    for (const r of p.rate ?? []) {
+      const code = `RATE_${r.k}` as DeadlineCode;
+      add(code, {
+        key: `RATE_${r.k}`,
+        title: `Rate your firm for ${crisisWords(r.k)}`,
+        detail:
+          r.rating === null
+            ? `Give ${r.firm} 1 to 5 stars for its help. No rating counts as 3 stars.`
+            : `You gave ${r.firm} ${stars(r.rating)}. You can change it until ${clock(deadlineAt(f, code))}.`,
+        href: CRISIS_ROOM,
+        linkLabel: "Rate the firm",
+        state: r.rating === null ? "todo" : "done",
+      });
+    }
+  }
+
+  if (f.track === "CONSULTING") {
+    const clients = p.clients ?? [];
+    if (p.profileSet === false) {
+      add(null, {
+        key: "PROFILE",
+        title: "Fill in your firm's profile",
+        detail: "Companies read it to choose a firm. Add a headline, what you are good at and your asking fee.",
+        href: CRISIS_ROOM,
+        linkLabel: "Fill in the profile",
+        state: "todo",
+      });
+    }
+    if (hire && p.hiringK === k) {
+      const closes = clock(deadlineAt(f, hire));
+      const mine = p.offersMyTurn ?? 0;
+      if (mine > 0) {
+        add(hire, {
+          key: "OFFERS",
+          title: mine === 1 ? "Answer 1 offer" : `Answer ${count(mine)} offers`,
+          detail: `${mine === 1 ? "A company wants" : "Companies want"} to hire you. Accept, decline or counter by ${closes}. You can take 2 clients per crisis (${clients.length} so far).`,
+          href: CRISIS_ROOM,
+          linkLabel: "See the offers",
+          state: "todo",
+        });
+      } else if (clients.length < 2) {
+        const countered = (p.offersWaiting ?? 0) > 0;
+        add(hire, {
+          key: "OFFERS",
+          title: countered ? "Your counter-offer is with the company" : "Wait for offers",
+          detail: countered
+            ? `The company has until ${closes} to accept, decline or counter.`
+            : `No offer to answer right now. Companies can send you offers until ${closes}.`,
+          href: CRISIS_ROOM,
+          state: countered ? "waiting" : "info",
+          ...(countered ? { stateLabel: "Waiting for the company" } : {}),
+        });
+      }
+    }
+    if (k !== null && due && p.workOpen) {
+      const at = clock(deadlineAt(f, due));
+      for (const c of clients) {
+        const who = c.ticker ?? c.name ?? "your client";
+        add(due, {
+          key: `ADVICE_${c.companyId}`,
+          title: `Write your advice memo for ${who}`,
+          detail: c.submitted
+            ? `Sent. You can send a better version until ${at}.`
+            : `Up to 500 words of advice for your client's ${k === 5 ? "problem statement" : "crisis"}. Your fee is paid only if the memo is in by ${at}.${k === 5 ? " You can also edit the solution with your client." : ""}`,
+          href: `${CRISIS_ROOM}#client-${c.companyId}`,
+          linkLabel: "Write the memo",
+          state: c.submitted ? "done" : "todo",
+        });
+      }
+    }
+  }
+
+  if (f.track === "FINANCE") {
+    if (f.phase === "PRESSURE" && k !== null) {
+      add(null, {
+        key: "CARDS",
+        title: `Read the crisis ${k} cards`,
+        detail: "Every company got a new crisis card and every price fell 5%. See who hired which firm before you trade.",
+        href: CRISIS_ROOM,
+        state: "info",
+      });
+    }
+    if (f.phase === "SATURATION") {
+      add(null, {
+        key: "CARDS",
+        title: "Round 3: fresh capital and the draft",
+        detail: "Every fund received half its starting capital again. Companies that share a problem statement compete: watch the draft, then invest.",
+        href: CRISIS_ROOM,
+        state: "info",
+      });
+    }
+  }
+  return out;
+}
+
 /** What this team should do now and next. */
 export function homePlan(f: HomeFacts): HomePlan {
   const now: HomeTask[] = [];
@@ -377,7 +664,8 @@ export function homePlan(f: HomeFacts): HomePlan {
   const p = f.progress;
 
   if (f.track === "PRODUCT" || f.track === "CONSULTING") {
-    if (windowOpen(f, "PROBLEM_PICK") && !p.oneCase) {
+    // The card is picked while the company is built: once the PRDs are being read it is no longer a task.
+    if (windowOpen(f, "PROBLEM_PICK") && !p.oneCase && !phaseReached(f.phase, "READING")) {
       add(
         "PROBLEM_PICK",
         task(f, "PROBLEM_PICK", {
@@ -393,7 +681,10 @@ export function homePlan(f: HomeFacts): HomePlan {
         }),
       );
     }
-    if (windowOpen(f, "PITCH")) add("PITCH", submissionTask(f, "PITCH"));
+    if (windowOpen(f, "PITCH")) {
+      if (f.track === "CONSULTING") now.push(memoTask(f));
+      add("PITCH", submissionTask(f, "PITCH"));
+    }
   }
 
   if (f.track === "CONSULTING") {
@@ -408,7 +699,7 @@ export function homePlan(f: HomeFacts): HomePlan {
         task(f, null, {
           key: "READ",
           title: "Read the pitch book",
-          detail: "Every company's pitch card is public now. IPO prices are released at the IPO.",
+          detail: "Every company's PRD is public now. IPO prices are released at the IPO.",
           href: BOOK,
           state: "info",
         }),
@@ -453,6 +744,11 @@ export function homePlan(f: HomeFacts): HomePlan {
     if (windowOpen(f, "FLASH")) add("FLASH", submissionTask(f, "FLASH"));
   }
 
+  for (const t of primusTasks(f)) {
+    if (t.code) shown.add(t.code);
+    now.push(t.task);
+  }
+
   if (qaOpen && f.track === "PRODUCT") {
     now.push(
       task(f, null, {
@@ -492,6 +788,7 @@ export function homePlan(f: HomeFacts): HomePlan {
     const at = deadlineAt(f, code);
     if (!at || shown.has(code) || deadlinePassed(f, code) || closedEarly(f, code)) continue;
     if (code === "PROBLEM_PICK" && f.progress.oneCase) continue; // one case for every squad: no pick
+    if (code === "PROBLEM_PICK" && phaseReached(f.phase, "READING")) continue;
     next.push({ key: code, title: UPCOMING_TITLES[code], at, href: hrefFor(f.track, code) });
   }
   if (f.track === "FINANCE" && f.nextRound && !f.openRound) {
@@ -513,6 +810,15 @@ function idleText(f: HomeFacts): string {
       : `Check in and listen to the briefing. The squad draw is${at("SQUAD_DRAW")}; your squad, company and tasks appear here after it.`;
   }
   if (f.paused) return "The event is paused. Deadlines move later by the length of the pause.";
+  if (f.format === "PRIMUS" && f.phase === "PRESSURE") {
+    const k = f.primus?.k ?? null;
+    if (k === null) {
+      const first = deadlineAt(f, "REVEAL_1");
+      return `Round 2 is four crises. The first crisis card arrives${first ? ` at ${clock(first)}` : " soon"}.`;
+    }
+    const next = k < 4 ? deadlineAt(f, `REVEAL_${k + 1}` as DeadlineCode) : null;
+    return `Crisis ${k} of 4: nothing to press right now. ${next ? `The next crisis card arrives at ${clock(next)}.` : "Round 3 comes next."}`;
+  }
   return "Nothing needs doing right now. Watch the bulletins and the market.";
 }
 
@@ -544,7 +850,7 @@ export interface PricedCompany {
 export interface HoldingLine {
   key: string;
   companyId: string;
-  /** Null before the company has a ticker (the squad's own company before its pitch card). */
+  /** Null before the company has a ticker (the squad's own company before its PRD). */
   ticker: string | null;
   name: string;
   lot: LotType;

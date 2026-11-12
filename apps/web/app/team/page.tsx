@@ -22,6 +22,9 @@ import { loadPulse } from "@/lib/team/pulse-data";
 import { PulseCard } from "./pulse-card";
 import { Celebrations } from "./celebrations";
 import { BIG_MOVE_BP } from "@/lib/team/pulse";
+import { BentoGrid, BentoItem, BentoTitle } from "@/components/ui/terminal-bento-grid";
+import { loadCrisisReport } from "@/lib/team/report-data";
+import { CrisisReportCard } from "./crisis-report";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -49,7 +52,7 @@ export default async function TeamHome() {
   const times = [...plan.now.map((t) => t.due), ...plan.next.map((n) => n.at)]
     .filter((t): t is string => !!t && new Date(t).getTime() > nowMs)
     .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-  const squadWork = plan.now.some((t) => ["PROBLEM_PICK", "PITCH", "FEE", "DEAL", "PLAN", "FLASH"].includes(t.key) && t.state !== "done");
+  const squadWork = plan.now.some((t) => ["PROBLEM_PICK", "PITCH", "FEE", "DEAL", "PLAN", "FLASH", "HIRE", "OFFERS", "DRAFT"].includes(t.key) && t.state !== "done");
   const marketOpen = phaseReached(status.phase, "READING");
   // The last trading round's headline (public prices only), once the market is open.
   const pulse = marketOpen ? await loadPulse(ctx.event.id) : null;
@@ -58,6 +61,11 @@ export default async function TeamHome() {
   // Coming up: only this round's deadlines (later rounds stay out of sight until they start).
   const comingUp = plan.next.filter((n) => inThisRound(status.phase, n.key));
   const rest = plan.now.filter((t) => t !== main);
+  // A PRIMUS event from Round 2: the team's own line per crisis (its scores, price moves, firm and stars).
+  const primusOn = ctx.event.format === "PRIMUS" && phaseReached(status.phase, "PRESSURE") && team.track !== "FINANCE";
+  const report = primusOn
+    ? await loadCrisisReport(ctx, data.facts.primus?.k ?? (phaseReached(status.phase, "CLOSE") ? 5 : null), data.facts.primus?.draft?.statement?.title ?? null)
+    : null;
 
   return (
     <div className="space-y-5">
@@ -96,10 +104,11 @@ export default async function TeamHome() {
         )}
       </section>
 
+      {/* The terminal dashboard: the score across the top, then cash, shares and squad as three windows. */}
+      <BentoGrid>
       <ScoreNow track={team.track} score={score} />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Tile icon="💵" label="Cash" tone="ring-phosphor">
+        <Tile icon="💵" label="Cash" hot>
           <span data-testid="home-cash">{money(team.cash)}</span>
           {team.track === "FINANCE" ? (
             <span className="mt-1 block font-sans text-xs font-normal text-paper">
@@ -107,7 +116,7 @@ export default async function TeamHome() {
             </span>
           ) : null}
         </Tile>
-        <Tile icon="📊" label={holdings.closing ? "Shares (closing prices)" : "Shares worth"} tone="ring-line">
+        <Tile icon="📊" label={holdings.closing ? "Shares (closing prices)" : "Shares worth"}>
           <span data-testid="home-holdings-value">{money(holdings.total)}</span>
           {holdings.unpriced ? (
             <span className="mt-1 block font-sans text-xs font-normal text-paper">
@@ -115,7 +124,7 @@ export default async function TeamHome() {
             </span>
           ) : null}
         </Tile>
-        <Tile icon="👥" label="Your squad" tone="ring-line">
+        <Tile icon="👥" label="Your squad">
           {squad ? (
             <>
               <span data-testid="home-squad">Squad {String(squad.number).padStart(2, "0")}</span>
@@ -134,7 +143,7 @@ export default async function TeamHome() {
                     ) : null}
                   </>
                 ) : (
-                  <span className="text-paper">Named, with its ticker, on the pitch card (by the pitch deadline).</span>
+                  <span className="text-paper">Named, with its ticker, on the PRD (by the pitch deadline).</span>
                 )}
               </span>
             </>
@@ -145,7 +154,13 @@ export default async function TeamHome() {
             </span>
           )}
         </Tile>
-      </div>
+      </BentoGrid>
+
+      {report ? (
+        <BentoGrid>
+          <CrisisReportCard report={report} />
+        </BentoGrid>
+      ) : null}
 
       {pulse ? <PulseCard pulse={pulse} mine={company?.ticker ?? null} /> : null}
       <Celebrations
@@ -159,6 +174,7 @@ export default async function TeamHome() {
 
       {badges ? <BadgesCard badges={badges} /> : null}
 
+      <BentoGrid>
       <Card icon="⏭️" title="Coming up this round">
         {comingUp.length === 0 ? (
           <p className="text-sm text-muted">Nothing else this round.</p>
@@ -187,6 +203,7 @@ export default async function TeamHome() {
       <Card
         icon="📣"
         title="Latest news"
+        span={2}
         action={
           <Link href="/team/bulletins" className="text-sm font-semibold text-paper underline underline-offset-2">
             All bulletins
@@ -206,7 +223,7 @@ export default async function TeamHome() {
         )}
       </Card>
 
-      <Card icon="🧾" title="Your shares">
+      <Card icon="🧾" title="Your shares" span={3}>
         {holdings.lines.length === 0 ? (
           <p className="text-sm text-muted">{squad ? "No shares." : "Shares are issued at the squad draw."}</p>
         ) : (
@@ -234,6 +251,7 @@ export default async function TeamHome() {
           <p className="mt-2 text-xs text-muted">A short is shares owed: its value is what covering it would cost now.</p>
         ) : null}
       </Card>
+      </BentoGrid>
 
       {status.paused ? <Notice tone="amber">While the event is paused, countdowns keep running but no deadline passes; each moves later on resume.</Notice> : null}
     </div>
@@ -245,7 +263,7 @@ function ScoreNow({ track, score }: { track: string; score: ReturnType<typeof sc
   if (score.value === null) return null;
   const up = score.changeBp !== null && score.changeBp >= 0;
   return (
-    <section className="mx-panel glow-box flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" aria-label="Your score now" data-testid="score-now">
+    <BentoItem as="section" span={3} className="bento-item-hot flex flex-wrap items-center justify-between gap-3" aria-label="Your score now" data-testid="score-now">
       <div>
         <p className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wide text-muted">
           <span className="text-base text-phosphor" aria-hidden>
@@ -265,13 +283,13 @@ function ScoreNow({ track, score }: { track: string; score: ReturnType<typeof sc
       ) : (
         <p className="text-sm text-muted">Only your own score: who is winning stays a secret until the awards!</p>
       )}
-    </section>
+    </BentoItem>
   );
 }
 
-function Tile({ icon, label, tone, children }: { icon: string; label: string; tone: string; children: ReactNode }) {
+function Tile({ icon, label, hot = false, children }: { icon: string; label: string; hot?: boolean; children: ReactNode }) {
   return (
-    <div className={`rounded-2xl bg-panel p-4 ring-1 ${tone}`}>
+    <BentoItem className={hot ? "bento-item-hot" : ""}>
       <p className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-wide text-muted">
         <span className="text-base text-phosphor" aria-hidden>
           <Glyph e={icon} />
@@ -279,24 +297,25 @@ function Tile({ icon, label, tone, children }: { icon: string; label: string; to
         {label}
       </p>
       <div className="mt-1 font-mono text-2xl font-extrabold tabular-nums text-phosphor glow">{children}</div>
-    </div>
+    </BentoItem>
   );
 }
 
-function Card({ icon, title, action, children }: { icon: string; title: string; action?: ReactNode; children: ReactNode }) {
+/** A titled terminal window in the bento grid: "> 📣 LATEST NEWS". */
+function Card({ icon, title, action, span = 1, children }: { icon: string; title: string; action?: ReactNode; span?: 1 | 2 | 3; children: ReactNode }) {
   return (
-    <section className="mx-panel rounded-2xl p-4" aria-label={title}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-lg font-extrabold text-phosphor glow">
+    <BentoItem as="section" span={span} aria-label={title}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
+        <BentoTitle>
           <span aria-hidden>
             <Glyph e={icon} />
           </span>
           <CipherText text={title} duration={450} />
-        </h2>
+        </BentoTitle>
         {action}
       </div>
       {children}
-    </section>
+    </BentoItem>
   );
 }
 
@@ -353,7 +372,7 @@ function SmallTask({ t }: { t: HomeTask }) {
       <div className="min-w-[12rem] flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-bold text-phosphor">{t.title}</h3>
-          {st ? <span className={`mx-tag text-xs ${st.chip}`}>{st.label}</span> : null}
+          {st ? <span className={`mx-tag text-xs ${st.chip}`}>{t.stateLabel ?? st.label}</span> : null}
         </div>
         <p className="text-sm text-paper">{t.detail}</p>
       </div>

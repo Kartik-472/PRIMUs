@@ -10,12 +10,13 @@ import { loadSquadWorkspace, pauseOf, windowInput } from "@/lib/team/squad-data"
 import { Badge, Panel } from "@/components/ui/ui";
 import { Due } from "./due";
 import { squadGate } from "./parts";
+import { DoThis, HowItWorks } from "@/components/ui/how-it-works";
 
 export const metadata: Metadata = { title: "Squad" };
 
 const ROLE_WORK: Record<Track, string> = {
-  PRODUCT: "Picks the problem card, writes the pitch card, co-writes the rescue plan and the flash answer, agrees the fee and signs the deal.",
-  CONSULTING: "Co-writes the rescue plan and the flash answer, agrees the fee, proposes the deal price and signs the deal.",
+  PRODUCT: "Picks the problem card, writes the PRD, co-writes the rescue plan and the flash answer, agrees the fee and signs the deal.",
+  CONSULTING: "Writes the crisis memo, co-writes the rescue plan and the flash answer, agrees the fee, proposes the deal price and signs the deal.",
   FINANCE: "Sets the deal amount and signs the deal.",
 };
 
@@ -54,7 +55,7 @@ export default async function SquadOverview() {
               </p>
             ) : (
               <p className="mt-1 text-sm text-paper" data-testid="squad-company">
-                No name or ticker claimed yet: they are claimed when the pitch card is submitted.
+                No name or ticker claimed yet: they are claimed when the PRD is submitted.
                 {draftName || draftTicker ? (
                   <span className="block text-muted">
                     In the draft: {draftName || "—"}
@@ -120,10 +121,10 @@ export default async function SquadOverview() {
             ) : null,
           )}
         </ul>
-        <p className="mt-3 text-xs text-muted">
-          Only the last version submitted on time is judged; a saved draft that is not submitted is not judged.
-          {ws.deadlines.DEAL ? ` The deal must be fully signed by ${clock(ws.deadlines.DEAL)}, or the plan score is capped at 50.` : ""}
-        </p>
+        <HowItWorks testId="squad-rules">
+          <p>Only the last version submitted on time is judged; a saved draft that is not submitted is not judged.</p>
+          {ws.deadlines.DEAL ? <p>The deal must be fully signed by {clock(ws.deadlines.DEAL)}, or the plan score is capped at 50.</p> : null}
+        </HowItWorks>
       </Panel>
     </div>
   );

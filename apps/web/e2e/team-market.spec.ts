@@ -67,10 +67,10 @@ test("Reading: the listing (no prices yet), the pitch book with every company's 
       ticker: ticker(i),
       problem: `Problem of company ${i + 1}.`,
       solution: "Sensors in every tank.",
-      customers: "Town councils.",
+      mvp: "Town councils.",
       business_model: "Yearly subscription.",
       advantage: "Cheaper than lab tests.",
-      use_of_seed: "",
+      risks: "",
     }, 0);
     await ev.n.ok(ev.n.team(x.p_code), "submit_submission", "PITCH");
   }
@@ -93,12 +93,13 @@ test("Reading: the listing (no prices yet), the pitch book with every company's 
   await expect(page.getByRole("heading", { name: "Pitch book (3 of 3)" })).toBeVisible();
   const eca = page.getByRole("region", { name: `${ticker(0)} pitch book` });
   await expect(eca.getByTestId("submission-PITCH").locator("dt")).toHaveText([
-    "The problem",
-    "The solution",
-    "Customers",
-    "How we make money",
-    "Our advantage",
-    "Use of seed money",
+    "Problem and target user",
+    "Proposed solution",
+    "Core features and MVP scope",
+    "Success metrics",
+    "Business model",
+    "Competitive edge",
+    "Key risks",
   ]);
   await expect(eca.getByTestId("submission-PITCH").locator("dd").first()).toHaveText("Problem of company 1.");
   await expect(eca.getByTestId("submission-PITCH").locator("dd").last()).toHaveText("(left empty)");
@@ -143,14 +144,14 @@ test("the IPO and round 1: IPO prices from the pitch verdicts, the last round's 
 
   await listRow(page, 0).getByRole("link", { name: ticker(0) }).click();
   await expect(page).toHaveURL(new RegExp(`/team/market/${ticker(0)}$`));
-  await expect(page.getByTestId("verdict-PITCH")).toHaveText(/^Pitch66\/100\+5% on the IPO price/);
+  await expect(page.getByTestId("verdict-PITCH")).toHaveText(/^PRD66\/100\+5% on the IPO price/);
   // Why: the published judge run's points per rubric line and its rationale.
   await page.getByTestId("verdict-PITCH").getByText("Why this score").click();
-  await expect(page.getByTestId("verdict-PITCH")).toContainText("Problem and how many people have it25/25");
+  await expect(page.getByTestId("verdict-PITCH")).toContainText("Problem and target user20/20");
   await expect(page.getByTestId("verdict-PITCH")).toContainText("One. Two. Three.");
   await expect(history(page)).toHaveCount(2);
-  // The chart draws the same two steps, the IPO tagged.
-  await expect(page.getByTestId("price-chart").locator("circle")).toHaveCount(2);
+  // The chart draws the same two steps (its candles describe themselves in the accessible label).
+  await expect(page.getByTestId("price-chart").getByRole("img").first()).toHaveAttribute("aria-label", /2 steps\.$/);
   await expect(page.getByTestId("price-chart").getByRole("img")).toHaveAttribute("aria-label", /price by step: IPO price \$10\.50, Round 1 \$10\.82/);
   await expect(history(page).nth(0).getByRole("cell")).toHaveText(["IPO price", /^\d\d:\d\d$/, "$10.50", "—", "$10.50", "Pitch tier +5% on $10.00"]);
   await expect(history(page).nth(1).getByRole("cell")).toHaveText([
@@ -162,7 +163,7 @@ test("the IPO and round 1: IPO prices from the pitch verdicts, the last round's 
     "Net +3,000 (buy 3,500 · sell 500 · short 0 · cover 0)",
   ]);
   await page.goto(`/team/market/${ticker(2)}`);
-  await expect(page.getByTestId("verdict-PITCH")).toHaveText(/^Pitch45\/100−5% on the IPO price/);
+  await expect(page.getByTestId("verdict-PITCH")).toHaveText(/^PRD45\/100−5% on the IPO price/);
 });
 
 test("the crisis: −15% on every price, each company's crisis card, and the crisis cards book", async ({ page }) => {

@@ -11,13 +11,16 @@ import { Heartbeat } from "@/lib/live/heartbeat";
 import { FeedbackBar, FeedbackProvider } from "@/lib/live/feedback";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Badge } from "@/components/ui/ui";
-import { ServerClock } from "@/components/ui/countdown";
+import { Countdown, ServerClock } from "@/components/ui/countdown";
+import { PORTAL_TITLES, portalAdmits, portalUrl, teamPortal, wrongPortalMessage } from "@/lib/portal/portal";
+import { MarketStrip } from "./market-strip";
 import { RealtimeDot } from "@/components/ui/realtime-dot";
 import { TeamNav } from "./nav";
 import { ActionBar } from "./action-bar";
 import { Alerts, SoundToggle } from "./alerts";
 import { loadPlanFacts } from "@/lib/team/home-data";
 import { homePlan } from "@/lib/team/home";
+import { crisisSteps } from "@/lib/team/crisis-steps";
 import { alertTasks, nextAction } from "@/lib/team/alerts";
 import { RoundBanner } from "./round-banner";
 import { FocusGate } from "./focus-gate";
@@ -37,13 +40,39 @@ export const metadata: Metadata = { title: { template: "%s · Team", default: "T
 export default async function TeamLayout({ children }: LayoutProps<"/team">) {
   const ctx = await loadTeamContext();
   const { team, event, status } = ctx;
+  // A track's portal shows only that track's pages: a team of another track (an old session) is sent to its own.
+  const portal = await teamPortal();
+  if (portal && !portalAdmits(portal, team.track)) {
+    return (
+      <main className="term flex min-h-dvh items-center justify-center px-4">
+        <div className="max-w-md space-y-4 border border-line bg-panel p-6" data-testid="wrong-portal">
+          <p className="bg-[var(--term-amber)] px-1.5 text-xs font-black tracking-widest text-black">PRIMUS</p>
+          <p className="text-paper">{wrongPortalMessage(portal, team.track, portalUrl(team.track))}</p>
+          <SignOutButton />
+        </div>
+      </main>
+    );
+  }
   // The bar and the alerts are guidance: if the plan cannot be read (say, the database is older than the app), every
   // page still works, without them.
-  const plan = await loadPlanFacts(ctx).then(homePlan, (err: unknown) => {
+  const facts = await loadPlanFacts(ctx).catch((err: unknown) => {
     console.error("team layout: no plan for the bar and alerts:", err);
     return null;
   });
+  const plan = facts ? homePlan(facts) : null;
   const next = plan ? nextAction(plan) : null;
+  // A PRIMUS event's Rounds 2 and 3: the crisis under way and its steps, for the banner's "you are here" row.
+  const k = facts?.primus?.k ?? null;
+  const crisis =
+    event.format === "PRIMUS" && facts && (status.phase === "PRESSURE" || status.phase === "SATURATION")
+      ? {
+          k,
+          steps:
+            k === null
+              ? []
+              : crisisSteps(team.track, k, Object.fromEntries(facts.deadlines.map((d) => [d.code, d.at])), k === 5 && (facts.primus?.workOpen === true || facts.primus?.hiringK === 5)),
+        }
+      : null;
   const sb = await supabaseServer();
   const { data: latest } = await sb
     .from("bulletins")
@@ -58,44 +87,74 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
   const sections = focusSections(team.track, status.phase, taskHref);
   return (
     <ClockProvider serverTime={status.server_time} pausedAt={status.paused ? status.paused_at : null}>
-      <EventChannel eventId={event.id}>
+      <EventChannel eventId={event.id} teamId={team.id} spreadMs={1200}>
         <SquadChannel squadId={ctx.squad?.id ?? null}>
         <FeedbackProvider>
         <Heartbeat eventId={event.id} area="team" />
         <BootSequence who={team.code} />
-        <div className="min-h-screen">
+        <div className="terminal-theme-scope term min-h-screen">
           <header className="border-b border-line bg-ink">
-            <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-[var(--term-amber-dim)] px-4 py-1.5">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="text-2xl text-phosphor" aria-hidden>
+                <span className="bg-[var(--term-amber)] px-1.5 text-xs font-black tracking-widest text-black">PRIMUS</span>
+                <span className="text-lg text-[var(--term-amber)]" aria-hidden>
                   <Glyph e={TRACK_EMOJI[team.track]} />
                 </span>
-                <h1 className="font-mono text-lg font-extrabold glow">{team.code}</h1>
-                <Badge tone="slate">{TRACK_LABELS[team.track]}</Badge>
-                <span className="hidden truncate text-sm text-paper sm:inline">{team.name}</span>
+                {/* The cursor sits beside the heading, so the heading reads exactly the team code. */}
+                <h1 className="text-lg font-bold text-[var(--term-amber)]">{team.code}</h1>
+                <span className="term-cursor -ml-1.5 text-lg text-[var(--term-amber)]" aria-hidden>
+                  ▮
+                </span>
+                <Badge tone="slate">{portal ? PORTAL_TITLES[portal] : TRACK_LABELS[team.track]}</Badge>
+                <span className="hidden truncate text-sm uppercase text-muted sm:inline">{team.name}</span>
                 {event.is_rehearsal ? <Badge tone="violet">Rehearsal ×{event.clock_speed}</Badge> : null}
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="rounded-xl bg-ink px-3 py-1 text-phosphor ring-1 ring-phosphor-dim glow-box">
-                  <span className="mr-1" aria-hidden>
-                    <Glyph e="💵" />
-                  </span>
-                  <span className="sr-only">Cash </span>
-                  <span className="font-mono font-extrabold tabular-nums text-phosphor glow" data-testid="team-cash">
-                    {money(team.cash)}
-                  </span>
-                </span>
-                {finance && team.collateral > 0 ? (
-                  <span className="text-xs text-muted">
-                    Locked: <span className="font-mono tabular-nums">{money(team.collateral)}</span>
-                  </span>
-                ) : null}
                 <RealtimeDot />
                 <SoundToggle />
-                <ServerClock className="hidden font-semibold sm:inline" />
+                <ServerClock className="font-semibold text-[var(--term-amber)]" />
+                <span className="text-xs text-muted">IST</span>
                 <SignOutButton />
               </div>
             </div>
+            {/* Two facts only: the team's cash, and its own thing (a fund: the trading round; the others: their
+                company and its share price). The round and the time left are in the banner below. */}
+            <dl className="grid grid-cols-2 gap-px bg-line text-sm">
+              <div className="bg-ink px-4 py-1.5">
+                <dt className="text-xs uppercase tracking-wider text-[var(--term-amber-dim)]">Your cash</dt>
+                <dd className="font-mono text-base font-semibold tabular-nums text-[var(--term-green)]" data-testid="team-cash">
+                  {money(team.cash)}
+                  {finance && team.collateral > 0 ? (
+                    <span className="ml-1 text-xs font-normal text-muted">locked {money(team.collateral)}</span>
+                  ) : null}
+                </dd>
+              </div>
+              {finance ? (
+                <div className="bg-ink px-4 py-1.5">
+                  <dt className="text-xs uppercase tracking-wider text-[var(--term-amber-dim)]">Trading</dt>
+                  <dd className="text-base">
+                    <Badge tone={status.trading === "OPEN" ? "green" : status.trading === "PAUSED" ? "amber" : "slate"}>{status.trading}</Badge>
+                    {status.trading === "OPEN" && status.open_round ? (
+                      <span className="ml-1 text-muted">
+                        Round {status.open_round.number} · <Countdown to={status.open_round.closes_at} passed="clearing" className="text-[var(--term-amber)]" />
+                      </span>
+                    ) : status.next_round ? (
+                      <span className="ml-1 text-muted">
+                        Round {status.next_round.number} at {clock(status.next_round.opens_at)}
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              ) : (
+                <div className="bg-ink px-4 py-1.5">
+                  <dt className="text-xs uppercase tracking-wider text-[var(--term-amber-dim)]">{team.track === "PRODUCT" ? "Your company" : "Your squad's company"}</dt>
+                  <dd className="font-mono text-base text-[var(--term-cyan)]" data-testid="team-company">
+                    {ctx.company ? `${ctx.company.ticker ?? "—"} · ${money(ctx.company.market_price)}` : "—"}
+                  </dd>
+                </div>
+              )}
+            </dl>
+            <MarketStrip eventId={event.id} />
           </header>
           <RoundBanner
             track={team.track}
@@ -104,6 +163,8 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
             gate={status.gate}
             next={status.next_phase}
             openRound={status.trading === "OPEN" ? status.open_round : null}
+            format={event.format}
+            crisis={crisis}
           />
           <div className="sticky top-0 z-40 border-b border-line bg-ink">
             <TeamNav sections={sections} />
@@ -133,7 +194,7 @@ export default async function TeamLayout({ children }: LayoutProps<"/team">) {
           ) : null}
           <FeedbackBar className="mx-auto max-w-5xl px-4 pt-3" />
           <main className="mx-auto max-w-5xl px-4 py-4">
-            <FocusGate track={team.track} phase={status.phase} taskHref={taskHref}>
+            <FocusGate track={team.track} phase={status.phase} taskHref={taskHref} format={event.format}>
               {children}
             </FocusGate>
           </main>

@@ -123,20 +123,20 @@ describe("price history", () => {
 
 describe("what is public", () => {
   test("pitch from Reading, plan from Plans published, flash once its scores are released", () => {
-    const none = { PITCH: false, PLAN: false, FLASH: false };
+    const none = { PITCH: false, PLAN: false, FLASH: false, MEMO: false };
     expect(publicTypes("BUILD", none)).toEqual([]);
     expect(publicTypes("READING", none)).toEqual(["PITCH"]);
     expect(publicTypes("RESCUE_2", { ...none, PITCH: true })).toEqual(["PITCH"]);
     expect(publicTypes("PLANS_PUBLISHED", none)).toEqual(["PITCH", "PLAN"]);
-    expect(publicTypes("ROUNDS_13_21", { PITCH: true, PLAN: true, FLASH: true })).toEqual(["PITCH", "PLAN", "FLASH"]);
+    expect(publicTypes("ROUNDS_13_21", { PITCH: true, PLAN: true, FLASH: true, MEMO: false })).toEqual(["PITCH", "PLAN", "FLASH"]);
   });
   test("books: the pitch book from Reading, crisis cards from the crisis, plans, then flash answers; ?type= is checked", () => {
-    const none = { PITCH: false, PLAN: false, FLASH: false };
+    const none = { PITCH: false, PLAN: false, FLASH: false, MEMO: false };
     expect(openBooks("BUILD", none)).toEqual([]);
     expect(openBooks("READING", none)).toEqual(["PITCH"]);
     expect(openBooks("CRISIS", { ...none, PITCH: true })).toEqual(["PITCH", "CRISIS"]);
     expect(openBooks("PLANS_PUBLISHED", { ...none, PITCH: true })).toEqual(["PITCH", "CRISIS", "PLAN"]);
-    expect(openBooks("AWARDS", { PITCH: true, PLAN: true, FLASH: true })).toEqual(["PITCH", "CRISIS", "PLAN", "FLASH"]);
+    expect(openBooks("AWARDS", { PITCH: true, PLAN: true, FLASH: true, MEMO: false })).toEqual(["PITCH", "CRISIS", "PLAN", "FLASH"]);
     expect(parseBookKind("crisis")).toBe("CRISIS");
     expect(parseBookKind(["plan", "x"])).toBe("PLAN");
     expect(parseBookKind("JUDGE_RUNS")).toBe("PITCH");
@@ -146,7 +146,7 @@ describe("what is public", () => {
   });
   test("template sections in order; a missing or non-text section is empty", () => {
     const s = submissionSections("PITCH", { problem: "  Dirty water.  ", solution: 42, company_name: "AquaSense" });
-    expect(s.map((x) => x.label)).toEqual(["The problem", "The solution", "Customers", "How we make money", "Our advantage", "Use of seed money"]);
+    expect(s.map((x) => x.label)).toEqual(["Problem and target user", "Proposed solution", "Core features and MVP scope", "Success metrics", "Business model", "Competitive edge", "Key risks"]);
     expect(s[0]!.text).toBe("Dirty water.");
     expect(s[1]!.text).toBe("");
   });

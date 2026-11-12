@@ -7,10 +7,11 @@ import { Panel } from "@/components/ui/ui";
 import { Due } from "../due";
 import { squadGate } from "../parts";
 import { SubmissionEditor } from "../submission";
+import { DoThis, HowItWorks } from "@/components/ui/how-it-works";
 
 export const metadata: Metadata = { title: "Pitch" };
 
-// The pitch card: the Product team writes it (with the company name and the ticker it claims), the Consulting team
+// The PRD: the Product team writes it (with the company name and the ticker it claims), the Consulting team
 // reads it. It hard-closes at the pitch deadline; its score sets the IPO price.
 export default async function PitchPage() {
   const ctx = await loadTeamContext();
@@ -20,17 +21,23 @@ export default async function PitchPage() {
   const win = submissionWindow("PITCH", ctx.team.track, windowInput(ctx, ws));
   return (
     <Panel
-      title="Pitch card"
+      title="PRD"
       actions={
         <span className="text-sm text-paper">
           Due <Due at={win.deadline} {...pauseOf(ctx)} testId="pitch-due" />
         </span>
       }
     >
-      <p className="mb-4 text-sm text-paper">
-        Up to {RULES.WORD_LIMIT.PITCH} words in the template&apos;s sections. The judge scores the problem, the solution, the business model and your
-        advantage (25 points each); the score sets your IPO price.
-      </p>
+      <div className="mb-4">
+        <DoThis testId="pitch-todo">Write your company&apos;s plan in seven short parts (up to {RULES.WORD_LIMIT.PITCH} words), then press Submit.</DoThis>
+        <HowItWorks label="How it is scored" testId="pitch-rules">
+          <p>
+            This is your Product Requirements Document (PRD). The AI judge scores the problem (20), the solution and MVP (20), success metrics (15), business
+            model (15), feasibility and risks (15) and clarity (15).
+          </p>
+          <p>The score sets your company&apos;s IPO price: a better PRD means a higher starting share price.</p>
+        </HowItWorks>
+      </div>
       <SubmissionEditor ctx={ctx} ws={ws} type="PITCH" win={win} />
     </Panel>
   );

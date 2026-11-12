@@ -8,7 +8,7 @@ const at = (hhmm: string) => {
   const day = h < 12 ? 9 : 8;
   return new Date(Date.UTC(2026, 9, day, h, m) - 330 * 60_000).toISOString();
 };
-const DEADLINES: Record<DeadlineCode, string> = {
+const DEADLINES: Partial<Record<DeadlineCode, string>> = {
   PROBLEM_PICK: "21:10",
   PITCH: "22:30",
   CALL_1: "23:15",
@@ -26,7 +26,7 @@ const DEADLINES: Record<DeadlineCode, string> = {
 
 const progress = (p: Partial<HomeProgress> = {}): HomeProgress => ({
   problemPicked: false,
-  submitted: { PITCH: false, PLAN: false, FLASH: false },
+  submitted: { PITCH: false, PLAN: false, FLASH: false, MEMO: false },
   fee: null,
   deal: null,
   calls: { 1: { made: 0, total: 2 }, 2: { made: 0, total: 2 }, 3: { made: 0, total: 2 } },
@@ -47,7 +47,7 @@ function facts(track: Track, phase: PhaseCode, now: string, extra: Partial<HomeF
     ipoAllocated: false,
     marketClosed: false,
     flashBulletinPublished: false,
-    released: { PITCH: false, PLAN: false, FLASH: false },
+    released: { PITCH: false, PLAN: false, FLASH: false, MEMO: false },
     deadlines: Object.entries(DEADLINES).map(([code, t]) => ({ code: code as DeadlineCode, at: at(t) })),
     phaseStarts: { SQUAD_DRAW: at("21:00"), READING: at("22:30"), CLOSE: at("05:00"), AWARDS: at("05:40") },
     openRound: null,
@@ -89,7 +89,7 @@ describe("what to do now, per track and phase", () => {
     // Past the pick deadline only the pitch is left; it is due 22:30.
     const later = homePlan(facts("PRODUCT", "BUILD", "21:30"));
     expect(later.now.map((t) => t.key)).toEqual(["PITCH"]);
-    expect(later.now[0]).toMatchObject({ title: "Write and submit your pitch card", due: at("22:30"), state: "todo" });
+    expect(later.now[0]).toMatchObject({ title: "Write and submit your PRD", due: at("22:30"), state: "todo" });
   });
 
   test("one case for every squad: no pick task, straight to the pitch", () => {
@@ -103,12 +103,15 @@ describe("what to do now, per track and phase", () => {
   test("Consulting sees the pitch as its partner's, and call 1 is open from the draw until 23:15 or the pitch release", () => {
     const f = facts("CONSULTING", "BUILD", "21:30");
     const plan = homePlan(f);
-    expect(plan.now.map((t) => t.key)).toEqual(["PITCH", "CALL_1"]);
-    expect(plan.now[0]).toMatchObject({ title: "Help with the pitch card", state: "info" });
-    expect(plan.now[1]).toMatchObject({ href: "/team/calls", state: "todo" });
+    expect(plan.now.map((t) => t.key)).toEqual(["MEMO", "PITCH", "CALL_1"]);
+    expect(plan.now[0]).toMatchObject({ title: "Write and submit your crisis memo", href: "/team/squad/memo", due: at("22:30"), state: "todo" });
+    expect(plan.now[1]).toMatchObject({ title: "Help with the PRD", state: "info" });
+    expect(plan.now[2]).toMatchObject({ href: "/team/calls", state: "todo" });
+    const done = homePlan(facts("CONSULTING", "BUILD", "21:30", { progress: progress({ submitted: { PITCH: false, PLAN: false, FLASH: false, MEMO: true } }) }));
+    expect(done.now[0]).toMatchObject({ key: "MEMO", state: "done" });
     expect(keys(facts("CONSULTING", "READING", "23:00", { progress: progress({ calls: { 1: { made: 2, total: 2 }, 2: { made: 0, total: 2 }, 3: { made: 0, total: 2 } } }) }))).toEqual(["CALL_1"]);
     expect(homePlan(facts("CONSULTING", "READING", "23:00", { progress: progress({ calls: { 1: { made: 2, total: 2 }, 2: { made: 0, total: 2 }, 3: { made: 0, total: 2 } } }) })).now[0]!.state).toBe("done");
-    expect(keys(facts("CONSULTING", "READING", "23:10", { released: { PITCH: true, PLAN: false, FLASH: false } }))).toEqual([]);
+    expect(keys(facts("CONSULTING", "READING", "23:10", { released: { PITCH: true, PLAN: false, FLASH: false, MEMO: false } }))).toEqual([]);
   });
 
   test("Finance during the IPO: place IPO bids (Trade) until 23:30; not while paused or once allocated", () => {
@@ -163,10 +166,10 @@ describe("what to do now, per track and phase", () => {
   });
 
   test("the flash answer opens with the bulletin and closes at 04:15 or the flash release", () => {
-    const f = facts("CONSULTING", "ROUNDS_13_21", "04:05", { released: { PITCH: true, PLAN: true, FLASH: false }, flashBulletinPublished: true });
+    const f = facts("CONSULTING", "ROUNDS_13_21", "04:05", { released: { PITCH: true, PLAN: true, FLASH: false, MEMO: false }, flashBulletinPublished: true });
     expect(keys(f)).toEqual(["FLASH"]); // call 2 closed at 03:40
     expect(keys({ ...f, nowMs: new Date(at("03:35")).getTime() })).toEqual(["CALL_2", "FLASH"]);
-    expect(keys({ ...f, released: { PITCH: true, PLAN: true, FLASH: true } })).toEqual(["CALL_3"]);
+    expect(keys({ ...f, released: { PITCH: true, PLAN: true, FLASH: true, MEMO: false } })).toEqual(["CALL_3"]);
   });
 
   test("Product answers questions from Reading until the close, with the number waiting", () => {
@@ -177,7 +180,7 @@ describe("what to do now, per track and phase", () => {
   });
 
   test("upcoming: only this track's deadlines, not passed, not open now, not closed early; soonest first", () => {
-    const plan = homePlan(facts("CONSULTING", "READING", "22:40", { released: { PITCH: false, PLAN: false, FLASH: false } }));
+    const plan = homePlan(facts("CONSULTING", "READING", "22:40", { released: { PITCH: false, PLAN: false, FLASH: false, MEMO: false } }));
     expect(plan.now.map((t) => t.key)).toEqual(["CALL_1"]);
     expect(plan.next.map((n) => n.key)).toEqual(["FEE", "DEAL_BONUS", "DEAL", "PLAN", "CALL_2"]);
     expect(plan.next[0]).toMatchObject({ href: "/team/rescue", at: at("01:05") });
@@ -218,5 +221,82 @@ describe("holdings", () => {
     expect(holdingsView([], companies)).toMatchObject({ lines: [], total: null, unpriced: 0 });
     const closed = holdingsView([{ company_id: "a", lot: "RETAINED", qty: 51000 }], [{ ...companies[0]!, closing_price: 1263 }]);
     expect(closed).toMatchObject({ total: 51000 * 1263, closing: true });
+  });
+});
+
+describe("a PRIMUS event's Rounds 2 and 3", () => {
+  const P_DEADLINES = { PROBLEM_PICK: "21:20", PITCH: "22:00", REVEAL_1: "22:45", HIRE_1: "23:05", DUE_1: "23:50", RATE_1: "00:05", REVEAL_2: "00:15", DRAFT: "05:00", HIRE_5: "05:15", DUE_5: "06:00", RATE_5: "06:15" };
+  const primus = (track: Track, phase: PhaseCode, now: string, p: NonNullable<HomeFacts["primus"]>, extra: Partial<HomeFacts> = {}) =>
+    facts(track, phase, now, {
+      format: "PRIMUS",
+      primus: p,
+      deadlines: Object.entries(P_DEADLINES).map(([code, t]) => ({ code: code as DeadlineCode, at: at(t) })),
+      ...extra,
+    });
+  const byKey = (f: HomeFacts) => Object.fromEntries(homePlan(f).now.map((t) => [t.key, t]));
+
+  test("Product: hire a firm, then write the plan; the hire closes first so it is the big task", () => {
+    const f = primus("PRODUCT", "PRESSURE", "22:50", { k: 1, hiringK: 1, workOpen: true, engagement: null, offersMyTurn: 0, offersWaiting: 0, rate: [] });
+    const plan = homePlan(f);
+    expect(plan.now.filter((t) => t.state === "todo").map((t) => t.key)).toEqual(["HIRE", "PLAN_K"]);
+    expect(plan.now[0]).toMatchObject({ key: "HIRE", title: "Hire a consulting firm", href: "/team/crisis", due: at("23:05") });
+    expect(byKey(f).PLAN_K).toMatchObject({ title: "Write and submit your plan for crisis 1", due: at("23:50") });
+    // Their deadlines are tasks now, so "coming up" does not repeat them.
+    expect(plan.next.map((n) => n.key)).not.toContain("HIRE_1");
+    expect(plan.next.map((n) => n.key)).toContain("REVEAL_2");
+  });
+
+  test("Product: an offer waits for the firm, a counter needs an answer, a hire is done", () => {
+    const base = { k: 1, hiringK: 1, workOpen: true, rate: [] };
+    expect(byKey(primus("PRODUCT", "PRESSURE", "22:50", { ...base, engagement: null, offersMyTurn: 0, offersWaiting: 1 })).HIRE).toMatchObject({ state: "waiting", stateLabel: "Waiting for the firm" });
+    expect(byKey(primus("PRODUCT", "PRESSURE", "22:50", { ...base, engagement: null, offersMyTurn: 1, offersWaiting: 0 })).HIRE).toMatchObject({ state: "todo", title: "Answer the firm's counter-offer" });
+    const hired = byKey(primus("PRODUCT", "PRESSURE", "22:50", { ...base, engagement: { firm: "C07", cash: 50_000, shares: 100, escrow: "HELD" } })).HIRE!;
+    expect(hired.state).toBe("done");
+    expect(hired.detail).toContain("You hired C07 for $500.00 + 100 shares.");
+  });
+
+  test("Product: a submitted plan is done; after the due time the firm is rated", () => {
+    const f = primus("PRODUCT", "PRESSURE", "23:55", { k: 1, hiringK: null, workOpen: false, engagement: { firm: "C07", cash: 50_000, shares: 0, escrow: "RELEASED" }, rate: [{ k: 1, firm: "C07", rating: null }] });
+    expect(keys(f)).toContain("RATE_1");
+    expect(keys(f)).not.toContain("PLAN_K");
+    expect(byKey(f).RATE_1).toMatchObject({ state: "todo", title: "Rate your firm for crisis 1", due: at("00:05") });
+    const sent = primus("PRODUCT", "PRESSURE", "23:10", { k: 1, hiringK: null, workOpen: true, engagement: null, rate: [] }, { progress: progress({ submitted: { CRISIS_1: true } }) });
+    expect(byKey(sent).PLAN_K!.state).toBe("done");
+  });
+
+  test("Product, Round 3: the draft comes first", () => {
+    const d = { pickNo: 4, picked: false, byDefault: false, statement: null, myTurn: false, closesAt: null, ahead: 3 };
+    const waiting = byKey(primus("PRODUCT", "SATURATION", "04:50", { k: 5, hiringK: null, workOpen: false, draft: d })).DRAFT!;
+    expect(waiting).toMatchObject({ state: "waiting", stateLabel: "Waiting for your turn" });
+    expect(waiting.detail).toContain("3 companies pick before you");
+    const mine = byKey(primus("PRODUCT", "SATURATION", "04:50", { k: 5, hiringK: null, workOpen: false, draft: { ...d, myTurn: true, closesAt: at("04:51"), ahead: 0 } })).DRAFT!;
+    expect(mine).toMatchObject({ state: "todo", title: "Your pick: choose a problem statement", due: at("04:51"), dueLabel: "Your pick ends" });
+    const picked = byKey(primus("PRODUCT", "SATURATION", "05:05", { k: 5, hiringK: 5, workOpen: true, engagement: null, draft: { ...d, picked: true, statement: { number: 2, title: "Farm credit" } } }));
+    expect(picked.DRAFT!.detail).toBe("You work on statement 2: Farm credit.");
+    expect(picked.HIRE!.detail).toContain("worth 5–20% of your cash");
+    expect(picked.PLAN_K!.title).toBe("Write and submit your solution");
+  });
+
+  test("Consulting: the profile, offers to answer, and a memo per client", () => {
+    const f = primus("CONSULTING", "PRESSURE", "22:50", { k: 1, hiringK: 1, workOpen: true, profileSet: false, offersMyTurn: 2, offersWaiting: 0, clients: [{ companyId: "c1", ticker: "LBOX", name: "Late Boxes", submitted: false }] });
+    const t = byKey(f);
+    expect(t.PROFILE).toMatchObject({ state: "todo", title: "Fill in your firm's profile" });
+    expect(t.OFFERS).toMatchObject({ state: "todo", title: "Answer 2 offers" });
+    expect(t.ADVICE_c1).toMatchObject({ state: "todo", title: "Write your advice memo for LBOX", href: "/team/crisis#client-c1", due: at("23:50") });
+    expect(t.ADVICE_c1!.detail).toContain("Your fee is paid only if the memo is in by 23:50.");
+    const idle = byKey(primus("CONSULTING", "PRESSURE", "22:50", { k: 1, hiringK: 1, workOpen: true, profileSet: true, offersMyTurn: 0, offersWaiting: 0, clients: [] }));
+    expect(idle.OFFERS).toMatchObject({ state: "info", title: "Wait for offers" });
+    expect(idle.PROFILE).toBeUndefined();
+  });
+
+  test("Finance reads the cards; a classic night has none of these tasks", () => {
+    expect(keys(primus("FINANCE", "PRESSURE", "22:50", { k: 1, hiringK: 1, workOpen: true }))).toContain("CARDS");
+    expect(keys(facts("PRODUCT", "RESCUE_1", "01:00"))).not.toContain("HIRE");
+  });
+
+  test("before the first crisis card, the idle line says when it arrives", () => {
+    expect(homePlan(primus("CONSULTING", "PRESSURE", "22:40", { k: null, hiringK: null, workOpen: false, profileSet: true, clients: [] })).idle).toBe(
+      "Round 2 is four crises. The first crisis card arrives at 22:45.",
+    );
   });
 });

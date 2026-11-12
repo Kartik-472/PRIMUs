@@ -13,6 +13,8 @@ import { tradeGate } from "./gate";
 import { OrderTicket, type TicketCompany } from "./ticket";
 import { OpenOrders } from "./open-orders";
 import { cancelOrder, editOrder, placeOrder } from "./actions";
+import { loadWire } from "@/lib/team/wire-data";
+import { WireFeed } from "../wire-feed";
 
 export const metadata: Metadata = { title: "Trade" };
 
@@ -28,7 +30,11 @@ export default async function TradePage() {
   if (gate) return gate;
   const { status, company: own } = ctx;
   const data = await loadTradeData(ctx, { orders: "pending" });
-  const at = (code: "READING" | "IPO" | "ROUNDS_1_4") => (data.phaseStarts[code] ? clock(data.phaseStarts[code]) : null);
+  const at = (code: "READING" | "IPO" | "ROUNDS_1_4") => {
+    // A PRIMUS event's first trading round is in Round 2 (PRESSURE).
+    const t = data.phaseStarts[code] ?? (code === "ROUNDS_1_4" ? data.phaseStarts.PRESSURE : undefined);
+    return t ? clock(t) : null;
+  };
 
   if (!phaseReached(status.phase, "READING")) {
     return (
@@ -57,6 +63,8 @@ export default async function TradePage() {
     .filter((c) => c.market_price !== null && c.id !== own?.id)
     .map((c) => ({ id: c.id, ticker: c.ticker!, name: c.name, price: c.market_price! }));
   const ownTicker = own?.ticker ?? null;
+  // What just became public (released scores, the plans, bulletins): the funds trade on it.
+  const wire = await loadWire(ctx.event.id);
 
   return (
     <div className="space-y-4">
@@ -144,10 +152,11 @@ export default async function TradePage() {
 
           <Panel title="Cash and limits">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              {/* What a fund can spend now comes first. */}
+              <Fact label="Available to spend" value={money(summary.available)} hint="Cash − collateral − reserves" testId="available" />
               <Fact label="Cash" value={money(summary.cash)} />
-              <Fact label="Collateral locked" value={money(summary.collateral)} hint="150% of your shorts' value" />
               <Fact label="Reserved by open orders" value={money(summary.reserved)} testId="reserved" />
-              <Fact label="Available cash" value={money(summary.available)} hint="Cash − collateral − reserves" testId="available" />
+              <Fact label="Collateral locked" value={money(summary.collateral)} hint="150% of your shorts' value" />
               <Fact
                 label="Short exposure"
                 value={money(summary.shortExposureWithPending)}
@@ -165,6 +174,7 @@ export default async function TradePage() {
           </Panel>
         </div>
       </div>
+      <WireFeed items={wire} />
     </div>
   );
 }
