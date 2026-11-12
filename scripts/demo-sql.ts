@@ -3,7 +3,7 @@
 //
 //   pnpm demo-sql --domain teams.example.org   → out/demo-event.sql and out/demo-logins.txt
 //
-// The demo event (slug "demo") is a rehearsal with 3 teams per track (P01–P03, C01–C03, F01–F03) plus an organiser,
+// The demo event (slug "demo") is a PRIMUS-format rehearsal with 3 teams per track (P01–P03, C01–C03, F01–F03) plus an organiser,
 // a fairness officer and a projector login. Passwords are random each run and only in the logins file.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,7 +19,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 const plan = buildSeedPlan({
   slug,
-  name: "Market Simulation demo",
+  name: "PRIMUS demo",
+  format: "PRIMUS",
   rehearsal: true,
   clockSpeed: 10,
   startsAt: eventStartIST(String(args.date ?? "2026-11-20")),
@@ -45,7 +46,7 @@ const payload = toSeedPayload(plan, new Map(logins.map((l) => [l.email, l.id])))
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 const json = (v: unknown) => `${q(JSON.stringify(v))}::jsonb`;
 
-const sql = `-- Market Simulation demo event (${slug}). Paste into the Supabase SQL editor and run, after the migrations.
+const sql = `-- PRIMUS demo event (${slug}). Paste into the Supabase SQL editor and run, after the migrations.
 -- Team logins use the domain ${domain}: it must equal NEXT_PUBLIC_TEAM_EMAIL_DOMAIN on Vercel.
 begin;
 
