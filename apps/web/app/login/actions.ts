@@ -6,6 +6,7 @@ import { teamEmailDomain } from "@/lib/env";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/auth/viewer";
 import { safeNext } from "@/lib/auth/routes";
+import { portalAdmits, portalUrl, teamPortal, wrongPortalMessage } from "@/lib/portal/portal";
 
 export interface LoginState {
   error?: string;
@@ -35,9 +36,6 @@ export async function signIn(_prev: LoginState, form: FormData): Promise<LoginSt
   const { error } = await sb.auth.signInWithPassword({ email, password });
   if (error) {
     const wrongCredentials = error.status === 400 || error.code === "invalid_credentials";
-    // The real cause stays on the server (the host's logs), never on the screen: a wrong key or address in the site's
-    // settings shows here as a 401 or a network error.
-    if (!wrongCredentials) console.error(`sign-in failed: status ${error.status ?? "none"}, code ${error.code ?? "none"}, ${error.message}`);
     return {
       login,
       error:
@@ -56,9 +54,13 @@ export async function signIn(_prev: LoginState, form: FormData): Promise<LoginSt
     await sb.auth.signOut();
     return { error: "This login is not set up for the event. Please go to the technical support desk.", login };
   }
-  // A team signing in from the sign-in page itself opens on the PRIMUS welcome screen; one sent here from a page
-  // (its session had expired) goes straight back to that page.
-  redirect(viewer.role === "TEAM" && !form.get("next") ? "/welcome" : safeNext(form.get("next"), viewer.role));
+  // A track's portal admits only that track's teams (organisers can sign in everywhere).
+  const portal = await teamPortal();
+  if (portal && viewer.team && !portalAdmits(portal, viewer.team.track)) {
+    await sb.auth.signOut();
+    return { error: wrongPortalMessage(portal, viewer.team.track, portalUrl(viewer.team.track)), login };
+  }
+  redirect(safeNext(form.get("next"), viewer.role));
 }
 
 export async function signOut(): Promise<void> {

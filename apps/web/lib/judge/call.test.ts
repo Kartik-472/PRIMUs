@@ -16,9 +16,9 @@ import {
 import { outputSchema } from "./schema";
 
 const VALID = JSON.stringify({
-  breakdown: { problem_user: 15, solution_requirements: 18, business_model: 12, go_to_market: 10, success_metrics: 5, risks: 5 },
+  breakdown: { problem: 20, solution: 18, metrics: 10, business_model: 9, feasibility: 4, clarity: 4 },
   total: 65,
-  rationale: "Clear problem. Workable solution. Thin advantage.",
+  rationale: "Clear problem. Workable solution. Thin feasibility.",
 });
 
 function message(text: string, stop_reason: Anthropic.StopReason = "end_turn", extra: Partial<Anthropic.Message> = {}): Anthropic.Message {
@@ -65,7 +65,7 @@ function fakeClient(answers: (Anthropic.Message | Error)[]) {
 }
 
 const errorBody = (type: string, message: string) => ({ type: "error", error: { type, message } });
-const OPTS = { model: "claude-opus-5-5", system: "RUBRIC", userText: "<submission>…</submission>", type: "PRD" as const, effort: "low" as const };
+const OPTS = { model: "claude-opus-5-5", system: "RUBRIC", userText: "<submission>…</submission>", type: "PITCH" as const, effort: "low" as const };
 
 describe("judgeOnce", () => {
   test("a valid answer: breakdown, total, rationale, the raw text, the model and the usage", async () => {
@@ -73,9 +73,9 @@ describe("judgeOnce", () => {
     const r = await judgeOnce(client, OPTS);
     expect(r).toMatchObject({
       ok: true,
-      breakdown: { problem_user: 15, solution_requirements: 18, business_model: 12, go_to_market: 10, success_metrics: 5, risks: 5 },
+      breakdown: { problem: 20, solution: 18, metrics: 10, business_model: 9, feasibility: 4, clarity: 4 },
       total: 65,
-      rationale: "Clear problem. Workable solution. Thin advantage.",
+      rationale: "Clear problem. Workable solution. Thin feasibility.",
       raw: VALID,
       model: "claude-opus-5-5",
       attempts: 1,
@@ -93,8 +93,8 @@ describe("judgeOnce", () => {
   });
 
   test("three invalid answers fail the run, not retryable", async () => {
-    const wrongSum = JSON.stringify({ breakdown: { problem_user: 15, solution_requirements: 18, business_model: 12, go_to_market: 10, success_metrics: 5, risks: 5 }, total: 99, rationale: "x" });
-    const overMax = JSON.stringify({ breakdown: { problem_user: 21, solution_requirements: 0, business_model: 0, go_to_market: 0, success_metrics: 0, risks: 0 }, total: 21, rationale: "x" });
+    const wrongSum = JSON.stringify({ breakdown: { problem: 20, solution: 18, metrics: 10, business_model: 9, feasibility: 4, clarity: 4 }, total: 99, rationale: "x" });
+    const overMax = JSON.stringify({ breakdown: { problem: 21, solution: 0, metrics: 0, business_model: 0, feasibility: 0, clarity: 0 }, total: 21, rationale: "x" });
     const { client, calls } = fakeClient([message("not json"), message(overMax), message(wrongSum)]);
     const r = await judgeOnce(client, OPTS);
     expect(r.ok).toBe(false);
@@ -285,11 +285,11 @@ describe("the request sent", () => {
 
   test("effort and the JSON schema go in output_config; the system prompt is cached; no thinking, no prefill", async () => {
     const { client, calls } = fakeClient([message(VALID)]);
-    await judgeOnce(client, { ...OPTS, type: "SOLUTION", model: "claude-sonnet-5-5", effort: "medium" });
+    await judgeOnce(client, { ...OPTS, type: "PLAN", model: "claude-sonnet-5-5", effort: "medium" });
     const body = calls[0]!.body;
     expect(body.model).toBe("claude-sonnet-5-5");
     expect(body.max_tokens).toBe(MAX_TOKENS);
-    expect(body.output_config).toEqual({ effort: "medium", format: { type: "json_schema", schema: outputSchema("SOLUTION") } });
+    expect(body.output_config).toEqual({ effort: "medium", format: { type: "json_schema", schema: outputSchema("PLAN") } });
     expect(body.system).toEqual([{ type: "text", text: "RUBRIC", cache_control: { type: "ephemeral" } }]);
     expect(body.messages).toEqual([{ role: "user", content: OPTS.userText }]);
     expect("thinking" in body).toBe(false);
@@ -307,7 +307,7 @@ describe("the request sent", () => {
     const { client, calls } = fakeClient([message(VALID)]);
     const signal = new AbortController().signal;
     const judge = claudeJudge(client, { effort: "low", temperature: 0 });
-    const r = await judge({ type: "PRD", model: "m", system: "S", userText: "U", requestText: "U", runNo: 1, signal });
+    const r = await judge({ type: "PITCH", model: "m", system: "S", userText: "U", requestText: "U", runNo: 1, signal });
     expect(r.ok).toBe(true);
     expect(calls[0]!.body).toMatchObject({ model: "m", temperature: 0, messages: [{ role: "user", content: "U" }] });
     expect(calls[0]!.options?.signal).toBe(signal);

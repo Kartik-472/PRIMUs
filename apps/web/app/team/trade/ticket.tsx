@@ -1,8 +1,8 @@
 "use client";
 
-// The order ticket: company (never the one the team built or the one it rescued), BUY or SELL and a whole-share
-// quantity, checked as the person types with the engine's validateOrder against the team's own view (the page's data,
-// re-read after every action and every broadcast), the cash a buy will reserve, and a Max button (the engine's
+// The order ticket: company (never the fund's own squad company), type and whole-share quantity, checked as the
+// person types with the engine's validateOrder against the fund's own view (the page's data, re-read after every
+// action and every broadcast), the reserve or collateral the order will lock, and a Max button (the engine's
 // maxQuantity). The check is guidance: the database checks again and its refusal is shown as it comes.
 //
 // One click places the order: it can be edited or cancelled until the round closes, so a second click would only
@@ -27,8 +27,6 @@ export interface TicketCompany {
   ticker: string;
   name: string | null;
   price: number;
-  /** Why this team may not trade it ("you built it", "you rescued it"), or null. */
-  blocked: string | null;
 }
 
 type Action = (prev: ActionResult | null, form: FormData) => Promise<ActionResult>;
@@ -92,7 +90,7 @@ export function OrderTicket({
       }}
     >
       <label className="block">
-        <span className="text-xs font-medium text-slate-600">Company</span>
+        <span className="text-xs font-medium text-paper">Company</span>
         <select
           name="company"
           required
@@ -107,10 +105,9 @@ export function OrderTicket({
             Choose a company…
           </option>
           {companies.map((c) => (
-            <option key={c.id} value={c.id} disabled={c.blocked !== null}>
+            <option key={c.id} value={c.id}>
               {c.ticker}
               {c.name ? ` · ${c.name}` : ""} · {money(c.price)}
-              {c.blocked ? ` (not for you: ${c.blocked})` : ""}
             </option>
           ))}
         </select>
@@ -118,13 +115,13 @@ export function OrderTicket({
       <input type="hidden" name="ticker" value={company?.ticker ?? ""} />
 
       <fieldset>
-        <legend className="text-xs font-medium text-slate-600">Order type</legend>
-        <div className="mt-1 grid grid-cols-2 gap-1">
+        <legend className="text-xs font-medium text-paper">Order type</legend>
+        <div className="mt-1 grid grid-cols-4 gap-1">
           {ORDER_TYPES.map((t) => (
             <label
               key={t}
-              className={`flex cursor-pointer items-center justify-center rounded-md px-2 py-2 text-sm font-semibold ring-1 ring-inset has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-slate-900 ${
-                type === t ? TYPE_ON[t] : "bg-white text-slate-700 ring-slate-300 hover:bg-slate-50"
+              className={`flex cursor-pointer items-center justify-center rounded-md px-2 py-2 text-sm font-semibold ring-1 ring-inset has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-phosphor ${
+                type === t ? TYPE_ON[t] : "bg-panel text-paper ring-line hover:bg-raised"
               }`}
             >
               <input
@@ -142,27 +139,14 @@ export function OrderTicket({
             </label>
           ))}
         </div>
-        <p className="mt-1 text-xs text-slate-500">{ORDER_TYPE_INFO[type].hint}</p>
+        <p className="mt-1 text-xs text-muted">{ORDER_TYPE_INFO[type].hint}</p>
       </fieldset>
 
       <div>
-        <label htmlFor="order-qty" className="text-xs font-medium text-slate-600">
+        <label htmlFor="order-qty" className="text-xs font-medium text-paper">
           Quantity (shares)
         </label>
-        <div className="mt-0.5 flex gap-1">
-          {/* Steps of 100 shares down and up, beside the box (the box still takes any whole number). */}
-          <button
-            type="button"
-            aria-label={`${QTY_STEP} fewer shares`}
-            className="shrink-0 rounded-md bg-slate-100 px-3 font-mono text-lg font-bold text-slate-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-200 disabled:opacity-40"
-            disabled={(parseShares(qty) ?? 0) <= 0}
-            onClick={() => {
-              setQty(String(Math.max(0, (parseShares(qty) ?? 0) - QTY_STEP)));
-              setMaxNote(null);
-            }}
-          >
-            −
-          </button>
+        <div className="mt-0.5 flex gap-2">
           <input
             id="order-qty"
             name="qty"
@@ -174,26 +158,15 @@ export function OrderTicket({
               setQty(e.target.value);
               setMaxNote(null);
             }}
-            className={`${inputClass} text-center font-mono`}
+            className={`${inputClass} font-mono`}
           />
-          <button
-            type="button"
-            aria-label={`${QTY_STEP} more shares`}
-            className="shrink-0 rounded-md bg-slate-100 px-3 font-mono text-lg font-bold text-slate-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-200"
-            onClick={() => {
-              setQty(String((parseShares(qty) ?? 0) + QTY_STEP));
-              setMaxNote(null);
-            }}
-          >
-            +
-          </button>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Quick amounts">
           {QUICK_QUANTITIES.map((n) => (
             <button
               key={n}
               type="button"
-              className="rounded-md bg-slate-100 px-3 py-1.5 font-mono text-sm font-semibold text-slate-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-200"
+              className="rounded-md bg-raised px-3 py-1.5 font-mono text-sm font-semibold text-phosphor ring-1 ring-inset ring-line hover:bg-phosphor-deep"
               onClick={() => {
                 setQty(String(n));
                 setMaxNote(null);
@@ -217,25 +190,25 @@ export function OrderTicket({
           </button>
         </div>
         {maxNote ? (
-          <p className="mt-1 text-sm text-red-700" role="alert">
+          <p className="mt-1 text-sm text-danger-soft" role="alert">
             {maxNote}
           </p>
         ) : null}
       </div>
 
       {company && pos ? (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md bg-slate-50 px-3 py-2 text-xs sm:grid-cols-4" aria-label={`Your position in ${company.ticker}`}>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md bg-raised px-3 py-2 text-xs sm:grid-cols-4" aria-label={`Your position in ${company.ticker}`}>
           <Fact label="Price now" value={money(pos.price)} />
-          <Fact label="You hold" value={`${count(pos.owned)}${pos.pending.SELL ? ` · selling ${count(pos.pending.SELL)}` : ""}`} />
-          <Fact label="Pending buys" value={count(pos.pending.BUY)} />
-          <Fact label={type === "BUY" ? "Can still buy (5,000 limit)" : "Can still sell"} value={count(type === "BUY" ? pos.room : pos.sellable)} />
+          <Fact label="You hold (exchange lot)" value={`${count(pos.exchangeQty)}${pos.pending.SELL ? ` · selling ${count(pos.pending.SELL)}` : ""}`} />
+          <Fact label="You are short" value={`${count(pos.shortQty)}${pos.pending.COVER ? ` · covering ${count(pos.pending.COVER)}` : ""}`} />
+          <Fact label={roomLabel(type)} value={count(roomOf(type, pos))} />
         </dl>
       ) : null}
 
       <Preview preview={preview} type={type} roundNumber={round.number} ticker={company?.ticker ?? null} />
 
       {closed ? (
-        <p className="text-sm font-medium text-amber-800" role="status">
+        <p className="text-sm font-medium text-warn" role="status">
           Round {round.number} closed at {clock(round.closesAt, true)}: orders are refused until the next round opens.
         </p>
       ) : null}
@@ -250,20 +223,27 @@ export function OrderTicket({
   );
 }
 
-/** The − and + buttons beside the quantity move it by this many shares. */
-const QTY_STEP = 100;
-
-/** Each order type's colour when chosen: buying green, selling red. */
+/** Each order type's colour when chosen: buying green, selling red, shorting orange, covering blue. */
 const TYPE_ON: Record<OrderType, string> = {
-  BUY: "bg-emerald-600 text-white ring-emerald-600",
-  SELL: "bg-red-600 text-white ring-red-600",
+  BUY: "bg-emerald-600 text-ink ring-phosphor",
+  SELL: "bg-danger text-ink ring-danger",
+  SHORT: "bg-warn text-ink ring-warn",
+  COVER: "bg-paper text-ink ring-paper",
 };
+
+function roomLabel(type: OrderType): string {
+  return { BUY: "Can still buy (4,000 limit)", SELL: "Can still sell", SHORT: "Can still short (2,000 limit)", COVER: "Can still cover" }[type];
+}
+
+function roomOf(type: OrderType, pos: ReturnType<typeof companyPosition>): number {
+  return { BUY: pos.longRoom, SELL: pos.sellable, SHORT: pos.shortRoom, COVER: pos.coverable }[type];
+}
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="font-mono font-semibold tabular-nums text-slate-900">{value}</dd>
+      <dt className="text-muted">{label}</dt>
+      <dd className="font-mono font-semibold tabular-nums text-phosphor">{value}</dd>
     </div>
   );
 }
@@ -273,15 +253,15 @@ export function Preview({ preview, type, roundNumber, ticker = null }: { preview
   return (
     <div aria-live="polite" data-testid="order-preview" className="text-sm">
       {preview.state === "EMPTY" ? (
-        <p className="text-slate-500">Choose a company and type a quantity: the ticket checks the order as you type.</p>
+        <p className="text-muted">Choose a company and type a quantity: the ticket checks the order as you type.</p>
       ) : preview.state === "REFUSED" ? (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-red-800 ring-1 ring-inset ring-red-200">
+        <p className="rounded-md bg-danger/10 px-3 py-2 text-danger-soft ring-1 ring-inset ring-danger/70">
           The exchange would refuse this order: <span className="font-semibold">{preview.message}</span>
         </p>
       ) : preview.state === "UNKNOWN" ? (
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900 ring-1 ring-inset ring-amber-200">{preview.message}</p>
+        <p className="rounded-md bg-warn/10 px-3 py-2 text-warn ring-1 ring-inset ring-warn/60">{preview.message}</p>
       ) : (
-        <ul className="space-y-1 rounded-md bg-emerald-50 px-3 py-2 text-emerald-950 ring-1 ring-inset ring-emerald-200">
+        <ul className="space-y-1 rounded-md bg-phosphor/10 px-3 py-2 text-phosphor ring-1 ring-inset ring-phosphor-dim">
           {ticker ? (
             <li className="text-base font-semibold" data-testid="order-summary">
               {orderSummary(type, preview.qty, ticker, preview.value)}
@@ -295,6 +275,11 @@ export function Preview({ preview, type, roundNumber, ticker = null }: { preview
             {type === "BUY" ? (
               <>
                 Cash reserved until the clearing: <Num>{money(preview.reserve)}</Num> (quantity × price × 1.10).
+              </>
+            ) : type === "SHORT" ? (
+              <>
+                Collateral reserved until the clearing: <Num>{money(preview.reserve)}</Num> (quantity × price × 150% × 1.10). After it, 150% of the short&apos;s value
+                stays locked as collateral.
               </>
             ) : (
               ORDER_TYPE_INFO[type].reserve

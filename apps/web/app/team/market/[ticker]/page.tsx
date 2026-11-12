@@ -2,54 +2,53 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { phaseReached, type SubmissionType } from "@msim/engine";
 import { loadTeamContext } from "@/lib/team/context";
-import { loadCompanyView, type PublicSubmission } from "@/lib/team/market-data";
-import { PUBLIC_FROM, SUBMISSION_TITLES, historyLines, marketOpensText } from "@/lib/team/market";
-import { detailedCandles, tradingWindow } from "@/lib/chart";
+import { loadCompanyView } from "@/lib/team/market-data";
+import { BOOK_PUBLIC_FROM, chartCandles, historyLines, SUBMISSION_TITLES, verdict } from "@/lib/team/market";
 import { CandleChart } from "@/components/ui/candle-chart";
+import { VerdictDetail } from "../verdict-detail";
 import { clock, money } from "@/lib/format";
 import { Badge, Notice, Panel, Stat, Table, Td } from "@/components/ui/ui";
-import { ScoreCard } from "../../score-card";
+import type { PublicSubmission } from "@/lib/team/market-data";
 import { Submission } from "../submission";
 import { CrisisCard } from "../crisis-card";
 
 export const metadata: Metadata = { title: "Market" };
 
-/** The moving average on the detailed charts: one cleared round's worth of candles. */
-const AVERAGE = 10;
+const TONE = { 1: "text-phosphor", 0: "text-paper", [-1]: "text-danger-soft" } as const;
+const TIER_TONE = { 1: "green", 0: "slate", [-1]: "red" } as const;
 
-const TONE = { 1: "text-emerald-700", 0: "text-slate-600", [-1]: "text-red-700" } as const;
-
-// One company: its prices and chart, and everything public about it so far: the PRD and its score (from 23:30), the
-// crisis card (from 23:45), the crisis solution (from 02:15) and its score (from 02:45), and every price change.
+// One company: its prices, and everything public about it so far: the pitch (from Reading), the verdicts (released
+// scores), the crisis card (from the crisis), the rescue plan (from Plans published), the flash answer (once the
+// flash scores are released) and every price change, round by round.
 export default async function CompanyPage({ params }: PageProps<"/team/market/[ticker]">) {
   const { ticker } = await params;
-  const { event, status, built, rescued } = await loadTeamContext();
+  const { event, status, company: own } = await loadTeamContext();
   const back = (
-    <Link href="/team/market" className="text-sm font-medium text-slate-700 underline underline-offset-2">
+    <Link href="/team/market" className="text-sm font-medium text-paper underline underline-offset-2">
       ← All companies
     </Link>
   );
-  if (!phaseReached(status.phase, "REVEAL_1")) {
+  if (!phaseReached(status.phase, "READING")) {
     return (
       <div className="space-y-4">
         {back}
-        <Notice>{marketOpensText()}</Notice>
+        <Notice>The market opens at Reading, when the pitch book goes public.</Notice>
       </div>
     );
   }
   const code = decodeURIComponent(ticker).toUpperCase();
-  const view = /^[A-Z]{4}$/.test(code) ? await loadCompanyView(event.id, code, status.phase) : null;
+  const view = /^[A-Z]{3,4}$/.test(code) ? await loadCompanyView(event.id, code, status.phase) : null;
   if (!view) {
     return (
       <div className="space-y-4">
         {back}
-        <Notice tone="amber">No company has the ticker {code.slice(0, 8)}.</Notice>
+        <Notice tone="amber">No listed company has the ticker {code.slice(0, 8)}.</Notice>
       </div>
     );
   }
-  const { company: c, history, submissions, scores, crisis, types, flow } = view;
+  const { company: c, history, submissions, scores, crisis, types } = view;
   const lines = historyLines(history);
-  const waiting = (["PRD", "SOLUTION"] as SubmissionType[]).filter((t) => !types.includes(t));
+  const waiting = (["PITCH", "PLAN", "FLASH"] as const).filter((t) => !types.includes(t));
 
   return (
     <div className="space-y-6">
@@ -59,42 +58,67 @@ export default async function CompanyPage({ params }: PageProps<"/team/market/[t
           <span className="flex flex-wrap items-baseline gap-2">
             <span className="font-mono">{c.ticker}</span>
             <span>{c.name}</span>
-            {built?.id === c.id ? <Badge tone="violet">You built it</Badge> : rescued?.id === c.id ? <Badge tone="amber">You rescue it</Badge> : null}
+            {own?.id === c.id ? <Badge tone="violet">Your squad</Badge> : null}
           </span>
         }
       >
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label="Market price" value={money(c.market_price)} />
-          <Stat label="Score-based price" value={money(c.score_price)} hint="start × 0.85 × reveal factor" />
-          <Stat label="Starting price" value={money(c.start_price)} hint={c.post_crisis_price ? `${money(c.post_crisis_price)} after the crisis` : undefined} />
-          {c.closing_price !== null ? <Stat label="Closing price" value={money(c.closing_price)} hint="½ market + ½ score-based" /> : <Stat label="Closing price" value="—" hint="at the closing bell" />}
+          <Stat label="IPO price" value={money(c.ipo_price)} />
+          <Stat label="AI price" value={money(c.ai_price)} hint="IPO × 0.85 × plan and flash tiers" />
+          {c.closing_price !== null ? (
+            <Stat label="Closing price" value={money(c.closing_price)} hint="(market + AI) ÷ 2" />
+          ) : (
+            <Stat label="Post-crisis price" value={money(c.post_crisis_price)} />
+          )}
         </div>
         <div className="mt-4">
-          <CandleChart
-            candles={tradingWindow(detailedCandles([...history].sort((a, b) => Number(a.id) - Number(b.id)), flow))}
-            label={`${c.ticker} price`}
-            secondName="Score-based price"
-            average={AVERAGE}
-            live
-            testId="price-chart"
-          />
+          <CandleChart candles={chartCandles(lines)} label={`${c.ticker} price by step`} secondName="AI price" testId="price-chart" live average={3} />
         </div>
       </Panel>
 
+      {scores.length ? (
+        <Panel title="Verdicts">
+          <ul className="space-y-3" aria-label="Verdicts">
+            {scores.map((s) => {
+              const v = verdict(s);
+              return (
+                <li key={s.type} className="text-sm" data-testid={`verdict-${s.type}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{v.title}</span>
+                    <span className="font-mono text-base font-semibold">{v.score}</span>
+                    <Badge tone={TIER_TONE[v.tierSign]}>{v.tier}</Badge>
+                  </div>
+                  {v.notes.map((n) => (
+                    <p key={n} className="mt-1 text-paper">
+                      {n}
+                    </p>
+                  ))}
+                  <VerdictDetail v={v} />
+                </li>
+              );
+            })}
+          </ul>
+        </Panel>
+      ) : null}
+
+      {types.includes("PITCH") ? <SubmissionPanel type="PITCH" s={submissions.PITCH} /> : null}
       {crisis ? (
         <Panel title="Crisis card">
           <CrisisCard card={crisis} />
         </Panel>
       ) : null}
 
-      {types.includes("SOLUTION") ? (
-        <SubmissionPanel type="SOLUTION" s={submissions.SOLUTION} score={scores.SOLUTION ?? null} note={scores.SOLUTION ? null : "Its score is revealed at the score reveal."} />
+      {types.includes("PLAN") ? <SubmissionPanel type="PLAN" s={submissions.PLAN} /> : null}
+      {types.includes("FLASH") ? <SubmissionPanel type="FLASH" s={submissions.FLASH} /> : null}
+      {waiting.length || !phaseReached(status.phase, "CRISIS") ? (
+        <p className="text-sm text-muted">
+          {[...(phaseReached(status.phase, "CRISIS") ? [] : [BOOK_PUBLIC_FROM.CRISIS]), ...waiting.map((t) => BOOK_PUBLIC_FROM[t])].join(" ")}
+        </p>
       ) : null}
-      {types.includes("PRD") ? <SubmissionPanel type="PRD" s={submissions.PRD} score={scores.PRD ?? null} note={null} /> : null}
-      {waiting.length ? <p className="text-sm text-slate-500">{waiting.map((t) => PUBLIC_FROM[t]).join(" ")}</p> : null}
 
       <Panel title="Price history">
-        <Table head={["Step", "Time", "Price", "Change", "Score-based price", "Detail"]} label="Price history" empty="No price yet.">
+        <Table head={["Step", "Time", "Price", "Change", "AI price", "Detail"]} label="Price history" empty="No price yet: prices start at the IPO.">
           {lines.map((l) => (
             <tr key={l.key}>
               <Td className="font-medium">{l.label}</Td>
@@ -106,9 +130,9 @@ export default async function CompanyPage({ params }: PageProps<"/team/market/[t
                 {l.change}
               </Td>
               <Td mono className="text-right">
-                {money(l.scorePrice)}
+                {money(l.ai)}
               </Td>
-              <Td className="text-slate-600">{l.detail}</Td>
+              <Td className="text-paper">{l.detail}</Td>
             </tr>
           ))}
         </Table>
@@ -117,27 +141,10 @@ export default async function CompanyPage({ params }: PageProps<"/team/market/[t
   );
 }
 
-function SubmissionPanel({
-  type,
-  s,
-  score,
-  note,
-}: {
-  type: SubmissionType;
-  s: PublicSubmission | undefined;
-  score: Parameters<typeof ScoreCard>[0]["score"] | null;
-  note: string | null;
-}) {
+function SubmissionPanel({ type, s }: { type: SubmissionType; s: PublicSubmission | undefined }) {
   return (
     <Panel title={SUBMISSION_TITLES[type]}>
-      {score ? (
-        <div className="mb-4 border-b border-slate-100 pb-4">
-          <ScoreCard type={type} score={score} />
-        </div>
-      ) : note ? (
-        <p className="mb-3 text-sm text-slate-500">{note}</p>
-      ) : null}
-      {s ? <Submission type={type} s={s} /> : <p className="text-sm text-slate-500">Nothing was saved before the lock.</p>}
+      {s ? <Submission type={type} s={s} /> : <p className="text-sm text-muted">Nothing was submitted on time.</p>}
     </Panel>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
-// The correction request: a reason and one or more entries (team, optional company, cash change in dollars,
+// The correction request: a reason and one or more entries (team, optional company and lot, cash change in dollars,
 // share change). The exchange takes the other side of every entry. Rows can be added and removed; blank rows are
 // ignored. The dollars are converted to cents on the server, exactly, from the text. A refused request keeps what was
 // typed (the form is submitted by hand, so React does not reset it); a request that is accepted clears the form.
 
 import { startTransition, useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
+import { TRACK_LABELS, type Track } from "@msim/engine";
 import type { ActionResult } from "@/lib/rpc";
 import { MAX_ENTRIES } from "@/lib/admin/ledger-corrections";
 import { ResultMessage } from "@/components/ui/action";
@@ -14,8 +15,9 @@ import { safely } from "@/components/ui/action-helpers";
 import { buttonClass, inputClass } from "@/components/ui/ui";
 
 export interface RequestOptions {
-  teams: { id: string; code: string }[];
+  tracks: { track: Track; teams: { id: string; code: string }[] }[];
   companies: { id: string; label: string }[];
+  lots: string[];
 }
 
 interface RequestState {
@@ -52,7 +54,7 @@ export function RequestCorrectionForm({
       }}
     >
       <label className="block">
-        <span className="text-xs font-medium text-slate-600">Reason (at least 10 characters)</span>
+        <span className="text-xs font-medium text-paper">Reason (at least 10 characters)</span>
         <textarea name="reason" required rows={2} maxLength={1000} className={inputClass} />
       </label>
       <Entries options={options} />
@@ -73,22 +75,26 @@ function Entries({ options }: { options: RequestOptions }) {
   return (
     <div className="space-y-3">
       {rows.keys.map((key, i) => (
-        <fieldset key={key} className="rounded-md border border-slate-200 p-3">
-          <legend className="px-1 text-xs font-semibold text-slate-700">Entry {i + 1}</legend>
-          <div className="grid gap-2 sm:grid-cols-4">
+        <fieldset key={key} className="rounded-md border border-line p-3">
+          <legend className="px-1 text-xs font-semibold text-paper">Entry {i + 1}</legend>
+          <div className="grid gap-2 sm:grid-cols-5">
             <label className="block">
-              <span className="text-xs font-medium text-slate-600">Team</span>
+              <span className="text-xs font-medium text-paper">Team</span>
               <select name="entry_team" defaultValue="" className={inputClass}>
                 <option value="">—</option>
-                {options.teams.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.code}
-                  </option>
+                {options.tracks.map((t) => (
+                  <optgroup key={t.track} label={TRACK_LABELS[t.track]}>
+                    {t.teams.map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.code}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-600">Company (optional)</span>
+              <span className="text-xs font-medium text-paper">Company (optional)</span>
               <select name="entry_company" defaultValue="" className={inputClass}>
                 <option value="">None</option>
                 {options.companies.map((c) => (
@@ -99,16 +105,27 @@ function Entries({ options }: { options: RequestOptions }) {
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-600">Cash change ($)</span>
+              <span className="text-xs font-medium text-paper">Lot</span>
+              <select name="entry_lot" defaultValue="" className={inputClass}>
+                <option value="">None</option>
+                {options.lots.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-paper">Cash change ($)</span>
               <input name="entry_cash" inputMode="decimal" autoComplete="off" placeholder="e.g. 12.34 or -0.50" className={`${inputClass} font-mono`} />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-600">Share change</span>
+              <span className="text-xs font-medium text-paper">Share change</span>
               <input name="entry_shares" inputMode="numeric" autoComplete="off" placeholder="e.g. 100 or -100" className={`${inputClass} font-mono`} />
             </label>
           </div>
           {rows.keys.length > 1 ? (
-            <button type="button" onClick={() => remove(key)} className="mt-2 text-xs font-medium text-red-700 hover:underline">
+            <button type="button" onClick={() => remove(key)} className="mt-2 text-xs font-medium text-danger-soft hover:underline">
               Remove entry {i + 1}
             </button>
           ) : null}
@@ -117,10 +134,10 @@ function Entries({ options }: { options: RequestOptions }) {
       <button type="button" onClick={add} disabled={rows.keys.length >= MAX_ENTRIES} className={buttonClass.secondary}>
         Add entry
       </button>
-      <p className="text-xs text-slate-500">
-        Each entry moves cash or shares between the team and the exchange, which takes the other side. A share change needs a company; a team holds
-        0 to 5,000 shares of any company. Shares taken away leave at the average cost; shares added come at no cost (enter what they cost as a cash
-        change).
+      <p className="text-xs text-muted">
+        Each entry moves cash or shares between the team and the exchange, which takes the other side. A share change needs a company and a lot
+        (RETAINED: the company&apos;s Product team; FEE: a consultant; SQUAD, EXCHANGE, SHORT: a fund). For a SHORT lot, a positive change means
+        more shares short.
       </p>
     </div>
   );

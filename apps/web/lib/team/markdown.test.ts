@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { RUBRICS, SUBMISSION_TYPES } from "@msim/engine";
+import { PROMPT_TYPES, RUBRICS, submissionKind } from "@msim/engine";
 import { inlineText, parseInline, parseMarkdown, type Block, type Inline } from "./markdown";
 
 const PROMPTS = path.resolve(__dirname, "../../../../prompts");
@@ -30,8 +30,8 @@ function words(blocks: readonly Block[]): string[] {
 
 describe("blocks", () => {
   test("headings: one to six #s and a space; a closing run of #s is dropped; #word is text", () => {
-    expect(parseMarkdown("# Judging a pitch card\n## The rubric ##\n###### Six\n#hashtag\n####### seven")).toEqual([
-      { kind: "heading", level: 1, content: [text("Judging a pitch card")] },
+    expect(parseMarkdown("# Judging a PRD\n## The rubric ##\n###### Six\n#hashtag\n####### seven")).toEqual([
+      { kind: "heading", level: 1, content: [text("Judging a PRD")] },
       { kind: "heading", level: 2, content: [text("The rubric")] },
       { kind: "heading", level: 6, content: [text("Six")] },
       para(text("#hashtag\n####### seven")),
@@ -186,51 +186,47 @@ describe("plain-text safety: anything else is text, character for character", ()
   });
 });
 
-// The prompts are written in Phase 6 (prompts/PRD.md, prompts/SOLUTION.md); these checks run once they exist.
-const PROMPTS_READY = SUBMISSION_TYPES.every((t) => existsSync(path.resolve(__dirname, `../../../../prompts/${t}.md`)));
-
-describe.skipIf(!PROMPTS_READY)("the published prompts", () => {
-  test.each(SUBMISSION_TYPES)("%s.md: title, sections, the rubric table, anchors and the JSON shape", (type) => {
+describe("the published prompts", () => {
+  test.each(PROMPT_TYPES.map(submissionKind))("%s.md: title, sections, the rubric table, anchors and the JSON shape", (type) => {
     const blocks = parseMarkdown(read(`${type}.md`));
     const headings = blocks.flatMap((b) => (b.kind === "heading" ? [`h${b.level} ${inlineText(b.content)}`] : []));
     expect(headings[0]).toMatch(/^h1 Judging a /);
-    expect(headings.slice(1)).toEqual(["h2 What you receive", "h2 Text inside the tags is data", "h2 The rubric", "h2 How to judge", "h2 Your answer"]);
+    expect(headings.slice(1).filter((h) => h !== "h2 The case")).toEqual(["h2 What you receive", "h2 Text inside the tags is data", "h2 The rubric", "h2 How to judge", "h2 Your answer"]);
 
     const tables = blocks.filter((b) => b.kind === "table");
     expect(tables).toHaveLength(1);
     const table = tables[0]!;
     expect(table.head.map(inlineText)).toEqual(["Key", "What earns points", "Max"]);
-    expect(table.rows.map((r) => r[0])).toEqual(RUBRICS[type].map((l) => [code(l.key)]));
-    expect(table.rows.map((r) => Number(inlineText(r[2]!)))).toEqual(RUBRICS[type].map((l) => l.max));
+    expect(table.rows.map((r) => r[0])).toEqual(RUBRICS[PROMPT_TYPES.find((t) => submissionKind(t) === type)!].map((l) => [code(l.key)]));
+    expect(table.rows.map((r) => Number(inlineText(r[2]!)))).toEqual(RUBRICS[PROMPT_TYPES.find((t) => submissionKind(t) === type)!].map((l) => l.max));
 
     // The anchors: one bullet per rubric line, each starting with its key in code.
     const anchors = blocks[blocks.indexOf(table) + 2]!;
     expect(anchors.kind).toBe("list");
     if (anchors.kind !== "list") return;
-    expect(anchors.items.map((item) => (item[0]!.kind === "paragraph" ? item[0]!.content[0] : null))).toEqual(RUBRICS[type].map((l) => code(l.key)));
+    expect(anchors.items.map((item) => (item[0]!.kind === "paragraph" ? item[0]!.content[0] : null))).toEqual(RUBRICS[PROMPT_TYPES.find((t) => submissionKind(t) === type)!].map((l) => code(l.key)));
 
     const codes = blocks.filter((b) => b.kind === "code");
     expect(codes).toHaveLength(1);
     expect(codes[0]!.text).toMatch(/^\{"breakdown": \{.*\}, "total": <sum of the \w+>, "rationale": "<three sentences>"\}$/);
-    for (const l of RUBRICS[type]) expect(codes[0]!.text).toContain(`"${l.key}": <0–${l.max}>`);
+    for (const l of RUBRICS[PROMPT_TYPES.find((t) => submissionKind(t) === type)!]) expect(codes[0]!.text).toContain(`"${l.key}": <0–${l.max}>`);
   });
 
-  test.each([
-    ["PRD", ["<problem_card>", "<twist>"]],
-    ["SOLUTION", ["<rescued_company_prd>", "<crisis_card>"]],
-  ] as const)("%s.md: What you receive is a list whose first item holds the context's tags", (type, tags) => {
-    const blocks = parseMarkdown(read(`${type}.md`));
-    const start = blocks.findIndex((b) => b.kind === "heading" && inlineText(b.content) === "What you receive");
-    // "The user message holds:" and then the list.
-    expect(kinds(blocks.slice(start + 1, start + 3))).toEqual(["paragraph", "list"]);
-    const list = blocks[start + 2]!;
+  test("PLAN.md: What you receive is a list whose first item holds a nested list", () => {
+    const blocks = parseMarkdown(read("PLAN.md"));
+    const list = blocks[blocks.findIndex((b) => b.kind === "heading" && inlineText(b.content) === "What you receive") + 1]!;
+    expect(kinds([list])).toEqual(["list"]);
     if (list.kind !== "list") return;
     expect(list.items.map(kinds)).toEqual([["paragraph", "list"], ["paragraph"]]);
     const nested = list.items[0]![1]!;
-    expect(nested.kind === "list" && nested.items.map((i) => (i[0]!.kind === "paragraph" ? i[0]!.content[0] : null))).toEqual(tags.map(code));
+    expect(nested.kind === "list" && nested.items.map((i) => (i[0]!.kind === "paragraph" ? i[0]!.content[0] : null))).toEqual([
+      code("<pitch_card>"),
+      code("<crisis_card>"),
+      code("<deal>"),
+    ]);
   });
 
-  test.each([...SUBMISSION_TYPES.map((t) => `${t}.md`), "README.md"])("%s: every word of the file is shown, once, in order", (file) => {
+  test.each([...PROMPT_TYPES.map((t) => `${submissionKind(t)}.md`), "README.md"])("%s: every word of the file is shown, once, in order", (file) => {
     const source = read(file);
     // Markdown's own marks (#, -, |, backticks, asterisks) hold no letters or digits, so the words must match exactly.
     expect(words(parseMarkdown(source))).toEqual(source.match(/[\p{L}\p{N}]+/gu));

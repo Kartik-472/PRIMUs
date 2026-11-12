@@ -1,44 +1,68 @@
-// Names shown on screens for phases and deadlines (shared by the control panel, the team portal and the big screen).
+// Names shown on screens for phases, deadlines and tracks (shared by the control panel, the team portal and the
+// big screen).
 
-import type { AwardCode, DeadlineCode, PhaseCode, SubmissionType } from "./types";
+import type { DeadlineCode, PhaseCode, Track } from "./types";
 
 export const PHASE_LABELS: Record<PhaseCode, string> = {
   SETUP: "Setup",
   CHECKIN: "Check-in",
   BRIEFING: "Briefing",
-  BUILD: "Round 1: Build",
-  JUDGING_1: "Judging the PRDs",
-  REVEAL_1: "PRD reveal",
-  CRISIS_QA: "The crisis",
-  RESCUE: "Round 2: Rescue",
-  JUDGING_2: "Judging the solutions",
-  MARKET_BLIND: "Round 3: Invest",
-  MARKET: "Round 3: Invest",
-  SETTLEMENT: "Closing bell",
+  SQUAD_DRAW: "Squad draw",
+  BUILD: "Build",
+  READING: "Reading",
+  IPO: "IPO",
+  PRESSURE: "Round 2: Pressure",
+  SATURATION: "Round 3: Saturation",
+  ROUNDS_1_4: "Rounds 1–4",
+  CRISIS: "Crisis",
+  RESCUE_1: "Rescue 1",
+  BREAK: "Break",
+  RESCUE_2: "Rescue 2",
+  PLANS_PUBLISHED: "Plans published",
+  VERDICTS: "Verdicts",
+  ROUNDS_13_21: "Rounds 13–21",
+  CLOSE: "Close",
+  SETTLEMENT: "Settlement",
+  APPEALS: "Appeals",
   AWARDS: "Awards",
 };
 
 export const DEADLINE_LABELS: Record<DeadlineCode, string> = {
-  PROBLEM_DRAW: "Problem cards",
-  TWIST: "The twist",
-  PRD_LOCK: "PRD form locks",
-  QA_CLOSE: "Q&A board closes",
-  SOLUTION_LOCK: "Crisis solution form locks",
-  LEADERBOARD_FREEZE: "Leaderboard freezes",
-  MARKET_CLOSE: "Closing bell",
+  PROBLEM_PICK: "Problem card pick",
+  PITCH: "PRD and crisis memo",
+  CALL_1: "Consultant call 1",
+  IPO_BIDS: "IPO bids",
+  FEE: "Advisor fee",
+  DEAL_BONUS: "Deal bonus cut-off",
+  DEAL: "Rescue deal",
+  PLAN: "Rescue plan",
+  CALL_2: "Consultant call 2",
+  FLASH_BULLETIN: "Flash bulletin",
+  FLASH: "Flash answer",
+  FLASH_TIER: "Flash tier",
+  CALL_3: "Consultant call 3",
+  ...subroundDeadlineLabels(),
 };
 
-export const SUBMISSION_LABELS: Record<SubmissionType, string> = {
-  PRD: "PRD",
-  SOLUTION: "Crisis solution",
-};
+type SubroundDeadline = Extract<DeadlineCode, `REVEAL_${string}` | `HIRE_${string}` | `DUE_${string}` | `RATE_${string}` | "DRAFT">;
 
-export const AWARD_LABELS: Record<AwardCode, string> = {
-  WINNER: "Winner",
-  RUNNER_UP: "Runner-up",
-  THIRD: "Third place",
-  BEST_PRD: "Best PRD",
-  BEST_SOLUTION: "Best crisis solution",
-  BEST_INVESTOR: "Best investor",
-  BEST_COMPANY: "Best company",
+export function subroundDeadlineLabels(): Record<SubroundDeadline, string> {
+  const out: Record<string, string> = {};
+  for (let k = 1; k <= 4; k++) {
+    out[`REVEAL_${k}`] = `Crisis ${k} revealed`;
+    out[`HIRE_${k}`] = `Hiring closes (crisis ${k})`;
+    out[`DUE_${k}`] = `Crisis ${k} plan and memos due`;
+    out[`RATE_${k}`] = `Consultant ratings close (crisis ${k})`;
+  }
+  out.DRAFT = "Problem statement draft ends";
+  out.HIRE_5 = "Round 3 negotiation closes";
+  out.DUE_5 = "Round 3 solution and memos due";
+  out.RATE_5 = "Consultant ratings close (Round 3)";
+  return out as Record<SubroundDeadline, string>;
+}
+
+export const TRACK_LABELS: Record<Track, string> = {
+  PRODUCT: "Product",
+  CONSULTING: "Consulting",
+  FINANCE: "Finance",
 };

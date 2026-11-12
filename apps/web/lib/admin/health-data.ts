@@ -32,9 +32,8 @@ export async function loadHealthData(eventId: string): Promise<HealthData> {
     }),
     sb
       .from("teams")
-      .select("id, code")
+      .select("id, code, track")
       .eq("event_id", eventId)
-      .eq("status", "ACTIVE") // registered teams only: the others have no team pages
       .order("code")
       .then((r) => {
         if (r.error) throw new Error(`teams: ${r.error.message}`);

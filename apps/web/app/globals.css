@@ -1,21 +1,521 @@
 @import "tailwindcss";
 
+/* ── The "Matrix" theme ────────────────────────────────────────────────────────────────────────────────────────────
+   Every colour of the app is one of the variables below, exposed to Tailwind as tokens (bg-panel, text-phosphor,
+   border-line, …). Measured on black: paper 18:1, phosphor 15:1, muted 12:1, amber 11:1, phosphor-mid 9:1, soft red
+   9:1. The dim and deep greens and the pure red (5.9:1) are for borders, fills and big type only, never small text. */
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
+  --mx-black: #000000;
+  --mx-green: #00ff41;
+  --mx-green-mid: #00c838;
+  --mx-green-dim: #008f11;
+  --mx-green-deep: #003b00;
+  --mx-paper: #d8ffd8;
+  --mx-muted: #8fdc9c;
+  --mx-amber: #ffb000;
+  --mx-red: #ff3b3b;
+  --mx-red-soft: #ff8f8f;
+  --mx-panel: #020a03;
+  --mx-raised: #051607;
+  --mx-line: #0a5a1a;
+  --mx-glow-text: 0 0 6px rgb(0 255 65 / 0.55);
+  --mx-glow-box: 0 0 0 1px rgb(0 255 65 / 0.25), 0 0 12px rgb(0 255 65 / 0.25);
+  --background: var(--mx-black);
+  --foreground: var(--mx-paper);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-ink: var(--mx-black);
+  --color-panel: var(--mx-panel);
+  --color-raised: var(--mx-raised);
+  --color-line: var(--mx-line);
+  --color-phosphor: var(--mx-green);
+  --color-phosphor-mid: var(--mx-green-mid);
+  --color-phosphor-dim: var(--mx-green-dim);
+  --color-phosphor-deep: var(--mx-green-deep);
+  --color-paper: var(--mx-paper);
+  --color-muted: var(--mx-muted);
+  --color-warn: var(--mx-amber);
+  --color-danger: var(--mx-red);
+  --color-danger-soft: var(--mx-red-soft);
+  /* Six palette classes are test hooks (the Playwright specs and one unit test look for them by name), so they stay in the markup and
+     are pointed at the theme here instead. */
+  --color-slate-100: var(--mx-raised);
+  --color-slate-800: var(--mx-green);
+  --color-red-50: color-mix(in srgb, var(--mx-red) 14%, var(--mx-black));
+  --color-red-500: var(--mx-red);
+  --color-emerald-400: var(--mx-green);
+  --color-emerald-600: var(--mx-green-mid);
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  /* Terminal corners: barely rounded. */
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 6px;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+/* Phones: nothing people read is under 16 px (labels and tags 14 px). */
+@media (max-width: 639px) {
+  :root {
+    --text-sm: 1rem;
+    --text-sm--line-height: 1.45;
+    --text-xs: 0.875rem;
+    --text-xs--line-height: 1.4;
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--mx-black);
+    scrollbar-color: var(--mx-green-dim) var(--mx-black);
+  }
+  /* The page itself is the CRT: faint scanlines and a green vignette painted on the body, behind every panel. */
+  body {
+    background-color: var(--mx-black);
+    background-image:
+      repeating-linear-gradient(to bottom, rgb(0 255 65 / 0.035) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse 120% 70% at 50% 0%, rgb(0 59 0 / 0.45), transparent 70%);
+    background-attachment: fixed;
+    color: var(--mx-paper);
+    font-family: var(--font-sans);
+  }
+  h1,
+  h2,
+  h3 {
+    color: var(--mx-green);
+    font-family: var(--font-mono);
+    letter-spacing: -0.01em;
+  }
+  ::selection {
+    background: var(--mx-green);
+    color: var(--mx-black);
+  }
+  :focus-visible {
+    outline: 2px solid var(--mx-green);
+    outline-offset: 2px;
+  }
+  /* Inputs are terminal fields: black, green edge, a blinking block cursor (the browser blinks the caret itself). */
+  input:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"], [type="range"]),
+  select,
+  textarea {
+    background-color: var(--mx-black);
+    color: var(--mx-paper);
+    border-color: var(--mx-green-dim);
+    caret-color: var(--mx-green);
+    caret-shape: block;
+    font-family: var(--font-mono);
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--mx-green);
+    box-shadow: var(--mx-glow-box);
+    outline: none;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--mx-green-dim);
+    opacity: 1;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--mx-green);
+  }
+  input[type="file"] {
+    color: var(--mx-muted);
+  }
+  a {
+    text-decoration-color: var(--mx-green-dim);
+  }
+  code,
+  kbd,
+  pre {
+    color: var(--mx-green);
+  }
+  /* The projector is laid out to the pixel for the sans face: its headings keep it. */
+  .mx-stage :is(h1, h2, h3) {
+    font-family: inherit;
+    color: inherit;
+  }
+}
+
+@utility glow {
+  text-shadow: var(--mx-glow-text);
+}
+@utility glow-box {
+  box-shadow: var(--mx-glow-box);
+}
+@utility glow-warn {
+  box-shadow: 0 0 0 1px rgb(255 176 0 / 0.3), 0 0 12px rgb(255 176 0 / 0.25);
+}
+@utility glow-danger {
+  box-shadow: 0 0 0 1px rgb(255 59 59 / 0.35), 0 0 14px rgb(255 59 59 / 0.3);
+}
+
+@layer components {
+  /* A panel: an opaque black card with a green edge, so nothing behind it (rain, dither) ever reaches its text. */
+  .mx-panel {
+    background: var(--mx-panel);
+    border: 1px solid var(--mx-line);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6), 0 0 18px rgb(0 255 65 / 0.06);
+  }
+
+  /* A button as a glowing, outlined terminal key. */
+  .mx-key {
+    display: inline-block;
+    border: 1px solid var(--mx-green);
+    background: rgb(0 255 65 / 0.06);
+    color: var(--mx-green);
+    font-family: var(--font-mono);
+    font-weight: 700;
+    box-shadow: 0 0 8px rgb(0 255 65 / 0.25), inset 0 -2px 0 rgb(0 255 65 / 0.25);
+    text-shadow: 0 0 6px rgb(0 255 65 / 0.4);
+    transition: background-color 120ms, box-shadow 120ms, transform 60ms;
+  }
+  .mx-key:hover:not(:disabled) {
+    background: rgb(0 255 65 / 0.18);
+    box-shadow: 0 0 14px rgb(0 255 65 / 0.45), inset 0 -2px 0 rgb(0 255 65 / 0.4);
+  }
+  .mx-key:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: 0 0 6px rgb(0 255 65 / 0.3);
+  }
+  .mx-key:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .mx-key-quiet {
+    border-color: var(--mx-green-dim);
+    background: transparent;
+    color: var(--mx-paper);
+    box-shadow: inset 0 -2px 0 rgb(0 143 17 / 0.5);
+    text-shadow: none;
+  }
+  .mx-key-solid {
+    background: var(--mx-green);
+    color: var(--mx-black);
+    text-shadow: none;
+  }
+  .mx-key-solid:hover:not(:disabled) {
+    background: var(--mx-paper);
+  }
+  .mx-key-danger {
+    border-color: var(--mx-red);
+    background: rgb(255 59 59 / 0.1);
+    color: var(--mx-red-soft);
+    box-shadow: 0 0 8px rgb(255 59 59 / 0.3), inset 0 -2px 0 rgb(255 59 59 / 0.35);
+    text-shadow: none;
+  }
+  .mx-key-danger:hover:not(:disabled) {
+    background: rgb(255 59 59 / 0.22);
+    box-shadow: 0 0 14px rgb(255 59 59 / 0.5), inset 0 -2px 0 rgb(255 59 59 / 0.5);
+  }
+
+  /* A badge as a [ BRACKETED ] tag. The brackets are drawn by CSS, so the text itself is unchanged; the empty alt text
+     ("/ \"\"") keeps them out of the accessible name, so a link or button reads "Corrections 1 pending", not "[ 1 pending ]". */
+  .mx-tag {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .mx-tag::before {
+    content: "[\00a0" / "";
+    opacity: 0.7;
+  }
+  .mx-tag::after {
+    content: "\00a0]" / "";
+    opacity: 0.7;
+  }
+
+  /* The result of an action as a system line: "> SYSTEM: Done." (the prefix is drawn by CSS). */
+  .mx-sys {
+    font-family: var(--font-mono);
+  }
+  .mx-sys::before {
+    content: "> SYSTEM: ";
+    opacity: 0.75;
+  }
+
+  /* A blinking block cursor after a line of text. */
+  .mx-cursor::after {
+    content: "";
+    display: inline-block;
+    width: 0.55em;
+    height: 1em;
+    margin-left: 0.15em;
+    vertical-align: -0.12em;
+    background: currentColor;
+    animation: mx-blink 1.1s steps(1) infinite;
+  }
+
+  /* An extra CRT layer (scanlines + vignette) for full-screen stages; it never takes a click. */
+  .mx-crt {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(to bottom, rgb(0 255 65 / 0.04) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.55) 100%);
+  }
+
+  /* MatrixRain: the canvas sits behind its siblings. */
+  .mx-rain {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  /* DitherLayer: crisp pixels. */
+  .mx-dither {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    shape-rendering: crispEdges;
+  }
+  /* A plain 50% Bayer checker as a CSS background (used by skeletons). */
+  .mx-dither-fill {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath fill='%23008f11' d='M0 0h1v1H0zM2 0h1v1H2zM1 1h1v1H1zM3 1h1v1H3zM0 2h1v1H0zM2 2h1v1H2zM1 3h1v1H1zM3 3h1v1H3z'/%3E%3C/svg%3E");
+    background-size: 8px 8px;
+    image-rendering: pixelated;
+  }
+
+  /* CipherText: the real text stays in the page (for tests and screen readers); while it "decodes", the real text is
+     made transparent and the scrambled glyphs are drawn over it from data-cipher. */
+  .mx-cipher[data-cipher] {
+    position: relative;
+    display: inline-block;
+    color: transparent;
+    text-shadow: none;
+  }
+  .mx-cipher[data-cipher]::after {
+    content: attr(data-cipher);
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    color: var(--mx-cipher-color, var(--mx-green));
+    text-shadow: var(--mx-glow-text);
+  }
+
+  /* ThermalScan: a horizontal scan line with a thermal-camera heat map (green → yellow → red) sweeping down once,
+     trailing a heat gradient. */
+  .mx-thermal {
+    position: relative;
+  }
+  .mx-thermal-beam {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .mx-thermal-beam::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #00ff41, #d7ff00 25%, #ffb000 40%, #ff3b3b 50%, #ffb000 60%, #d7ff00 75%, #00ff41);
+    box-shadow: 0 0 14px 3px rgb(255 176 0 / 0.55);
+    animation: mx-scan var(--mx-scan-ms, 1400ms) cubic-bezier(0.4, 0, 0.2, 1) var(--mx-scan-count, 1) both;
+  }
+  .mx-thermal-beam::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 34%;
+    background: linear-gradient(to bottom, transparent, rgb(0 255 65 / 0.1) 35%, rgb(215 255 0 / 0.16) 70%, rgb(255 59 59 / 0.24));
+    mix-blend-mode: screen;
+    animation: mx-scan-trail var(--mx-scan-ms, 1400ms) cubic-bezier(0.4, 0, 0.2, 1) var(--mx-scan-count, 1) both;
+  }
+  .mx-thermal-loop {
+    --mx-scan-count: infinite;
+    --mx-scan-ms: 1600ms;
+  }
+  /* A loading block: a dithered slab under a looping thermal scan. */
+  .mx-skeleton {
+    position: relative;
+    overflow: hidden;
+    min-height: 3rem;
+    border: 1px solid var(--mx-line);
+    background-color: var(--mx-panel);
+    opacity: 0.9;
+  }
+
+  /* BootSequence: a short terminal boot log over the page. It never takes a click (any click or key skips it). */
+  .mx-boot {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: var(--mx-black);
+    color: var(--mx-green);
+    font-family: var(--font-mono);
+    pointer-events: none;
+    animation: mx-boot-out 1500ms linear both;
+  }
+  .mx-boot-line {
+    opacity: 0;
+    animation: mx-boot-line 120ms linear both;
+  }
+
+  /* ── Terminal bento grid (components/ui/terminal-bento-grid.tsx) ── */
+  /* A full-screen terminal: black, CRT scanlines and a slow scan bar rolling down over everything (never takes a click). */
+  .terminal-container {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: 100dvh;
+    background: var(--mx-black);
+    color: var(--mx-green);
+    font-family: var(--font-mono);
+  }
+  .terminal-container::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(to bottom, rgb(0 255 65 / 0.05) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.6) 100%);
+  }
+  .terminal-container::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: -50%;
+    z-index: 0;
+    height: 50%;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, rgb(0 255 65 / 0.03) 80%, rgb(0 255 65 / 0.1) 99%, transparent);
+    animation: scanline 8s linear infinite;
+  }
+  :where(.terminal-container) > :where(:not(.mx-rain, .mx-crt, .mx-dither)) {
+    position: relative;
+    z-index: 1;
+  }
+  /* Inside the scope, headings and code use the terminal face. */
+  .terminal-theme-scope :is(h1, h2, h3, p, li) {
+    text-wrap: pretty;
+  }
+  .terminal-theme-scope h1 {
+    font-family: var(--font-mono);
+    color: var(--mx-green);
+    text-shadow: var(--mx-glow-text);
+  }
+
+  /* The grid: one column on a phone, two from 640 px, three from 1024 px. Items pick their span with sm:/lg:col-span-*. */
+  .bento-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+  @media (min-width: 640px) {
+    .bento-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1024px) {
+    .bento-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  /* One cell: an opaque terminal window with a green edge, a glow on hover, and its own scan bar sweeping through. */
+  .bento-item {
+    position: relative;
+    isolation: isolate;
+    min-width: 0;
+    overflow: hidden;
+    padding: 1.25rem;
+    border: 1px solid var(--mx-green-dim);
+    border-radius: var(--radius-lg);
+    background: var(--mx-panel);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6), 0 0 10px rgb(0 255 65 / 0.12), inset 0 0 24px rgb(0 255 65 / 0.04);
+    transition: border-color 160ms, box-shadow 160ms;
+    overflow-wrap: anywhere;
+  }
+  .bento-item::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: -50%;
+    z-index: -1;
+    height: 50%;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, rgb(0 255 65 / 0.04) 85%, rgb(0 255 65 / 0.12) 99%, transparent);
+    animation: scanline 6s linear infinite;
+  }
+  .bento-item:hover,
+  .bento-item:focus-within {
+    border-color: var(--mx-green);
+    box-shadow: 0 0 0 1px rgb(0 255 65 / 0.35), 0 0 20px rgb(0 255 65 / 0.3), inset 0 0 24px rgb(0 255 65 / 0.06);
+  }
+  /* The one cell that matters most right now. */
+  .bento-item-hot {
+    border-color: var(--mx-green);
+    box-shadow: var(--mx-glow-box), inset 0 0 24px rgb(0 255 65 / 0.06);
+  }
+
+  /* A blinking underscore after a heading, like a waiting prompt. */
+  .blinking-cursor::after {
+    content: "_";
+    margin-left: 0.1em;
+    animation: blink 1s step-end infinite;
+  }
+}
+
+@keyframes mx-blink {
+  50% { opacity: 0; }
+}
+@keyframes mx-scan {
+  from { top: 0; opacity: 1; }
+  92% { opacity: 1; }
+  to { top: 100%; opacity: 0; }
+}
+@keyframes mx-scan-trail {
+  from { transform: translateY(-100%); opacity: 1; }
+  92% { opacity: 1; }
+  to { transform: translateY(194%); opacity: 0; }
+}
+@keyframes mx-boot-out {
+  0%, 82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes mx-boot-line {
+  to { opacity: 1; }
+}
+
+/* The terminal bento grid's scan bar and cursor. */
+@keyframes scanline {
+  0% {
+    top: -50%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+@keyframes blink {
+  from, to {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* The projector's news ticker: the strip is drawn twice side by side and moves by half its width, so it loops without
@@ -27,156 +527,29 @@ body {
 .msim-ticker-track {
   animation: msim-ticker var(--ticker-seconds, 60s) linear infinite;
 }
+
+/* Less motion: no rain, no scramble, no scan, no boot, no blinking. Static versions only. */
 @media (prefers-reduced-motion: reduce) {
   .msim-ticker-track { animation: none; }
+  .mx-rain,
+  .mx-boot { display: none; }
+  .mx-cursor::after { animation: none; }
+  .blinking-cursor::after { animation: none; }
+  .terminal-container::after,
+  .bento-item::before { display: none; }
+  .bento-item { transition: none; }
+  .mx-key { transition: none; }
+  /* The scan line rests at the top edge as a still heat bar. */
+  .mx-thermal-beam::before { animation: none; top: 0; opacity: 1; }
+  .mx-thermal-beam::after { display: none; }
+  .mx-cipher[data-cipher] { color: inherit; display: inline; }
+  .mx-cipher[data-cipher]::after { content: none; }
 }
 
-/* ───────────── The Event timing panel: a dark, Matrix-inspired console (scoped to .mx-root) ─────────────
-   Phosphor green on near-black, monospace digits with a soft glow, a faint falling-code texture behind the frames.
-   Text keeps a contrast of at least 7:1 on the background; motion stops for screens that ask for less. */
-.mx-root {
-  --mx-bg: #020b05;
-  --mx-panel: rgba(3, 20, 9, 0.88);
-  --mx-line: rgba(16, 185, 129, 0.28);
-  --mx-text: #a7f3d0;
-  --mx-glow: 0 0 6px rgba(52, 211, 153, 0.55), 0 0 18px rgba(16, 185, 129, 0.25);
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  border-radius: 0.75rem;
-  background: radial-gradient(1200px 500px at 20% -10%, rgba(16, 185, 129, 0.12), transparent 60%), var(--mx-bg);
-  color: var(--mx-text);
-  padding: 1rem;
-  font-family: var(--font-sans);
-  box-shadow: inset 0 0 0 1px var(--mx-line), 0 10px 40px rgba(2, 44, 25, 0.35);
-}
-@media (min-width: 768px) {
-  .mx-root { padding: 1.5rem; }
-}
-/* The falling code: two layers of thin green glyph columns drifting down, behind everything, very faint. */
-.mx-rain {
-  position: absolute;
-  inset: -50% 0 0 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.18;
-  background-image:
-    repeating-linear-gradient(90deg, transparent 0 22px, rgba(52, 211, 153, 0.35) 22px 23px, transparent 23px 46px),
-    repeating-linear-gradient(180deg, rgba(52, 211, 153, 0.5) 0 2px, transparent 2px 9px);
-  mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
-  animation: mx-fall 14s linear infinite;
-}
-.mx-root::after {
-  /* Scanlines. */
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px);
-}
-@keyframes mx-fall {
-  from { transform: translateY(0); }
-  to { transform: translateY(50%); }
-}
-.mx-frame {
-  background: var(--mx-panel);
-  border: 1px solid var(--mx-line);
-  border-radius: 0.5rem;
-  backdrop-filter: blur(2px);
-  transition: border-color 200ms ease, box-shadow 200ms ease;
-}
-.mx-frame:hover { border-color: rgba(52, 211, 153, 0.45); }
-.mx-title {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  color: #6ee7b7;
-  text-shadow: var(--mx-glow);
-}
-.mx-title::before { content: "> "; color: #34d399; }
-.mx-sub { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; color: #6ee7b7; }
-.mx-digits {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  color: #d1fae5;
-  text-shadow: var(--mx-glow);
-}
-.mx-chip {
-  font-family: var(--font-mono);
-  border: 1px solid var(--mx-line);
-  border-radius: 999px;
-  padding: 0.1rem 0.6rem;
-  color: #6ee7b7;
-  white-space: nowrap;
-}
-.mx-chip-live { color: #022c16; background: #34d399; border-color: #34d399; box-shadow: var(--mx-glow); }
-.mx-chip-warn { color: #1f1300; background: #fcd34d; border-color: #fcd34d; }
-.mx-btn {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: 600;
-  border-radius: 0.375rem;
-  padding: 0.45rem 0.8rem;
-  color: #a7f3d0;
-  background: rgba(6, 78, 59, 0.35);
-  border: 1px solid rgba(52, 211, 153, 0.45);
-  transition: background 150ms ease, box-shadow 150ms ease, transform 80ms ease;
-}
-.mx-btn:hover:not(:disabled) { background: rgba(6, 95, 70, 0.6); box-shadow: var(--mx-glow); }
-.mx-btn:active:not(:disabled) { transform: translateY(1px); }
-.mx-btn:focus-visible, .mx-seg-btn:focus-visible, .mx-input:focus-visible { outline: 2px solid #6ee7b7; outline-offset: 2px; }
-.mx-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.mx-btn-primary { color: #022c16; background: #34d399; border-color: #34d399; }
-.mx-btn-primary:hover:not(:disabled) { background: #6ee7b7; }
-.mx-btn-danger, .mx-btn-danger:hover:not(:disabled) { color: #fff7ed; background: #b45309; border-color: #f59e0b; box-shadow: 0 0 12px rgba(245, 158, 11, 0.45); }
-.mx-seg-btn { font-family: var(--font-mono); font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 0.25rem; color: #6ee7b7; transition: background 150ms ease; }
-.mx-seg-btn-on { color: #022c16; background: #34d399; box-shadow: var(--mx-glow); }
-.mx-input {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  background: rgba(0, 0, 0, 0.55);
-  color: #d1fae5;
-  border: 1px solid var(--mx-line);
-  border-radius: 0.25rem;
-  padding: 0.25rem 0.5rem;
-}
-.mx-input:disabled { opacity: 0.5; }
-.mx-input::placeholder { color: #047857; }
-.mx-input-edited { border-color: #fcd34d; box-shadow: 0 0 8px rgba(252, 211, 77, 0.35); }
-.mx-input[aria-invalid="true"] { border-color: #f59e0b; }
-.mx-inset { border: 1px dashed rgba(52, 211, 153, 0.45); border-radius: 0.375rem; padding: 0.75rem; background: rgba(0, 0, 0, 0.35); }
-.mx-row-current { background: rgba(16, 185, 129, 0.12); color: #d1fae5; }
-/* The timeline. */
-.mx-seg {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  min-width: 14px;
-  border-right: 1px solid rgba(0, 0, 0, 0.6);
-  background: rgba(6, 78, 59, 0.35);
-  color: #6ee7b7;
-  transition: flex-grow 400ms ease;
-}
-.mx-seg-done { background: rgba(4, 47, 46, 0.6); color: #047857; }
-.mx-seg-current { background: rgba(6, 95, 70, 0.55); color: #ecfdf5; box-shadow: inset 0 0 0 1px #34d399; }
-.mx-seg-untimed { background-image: repeating-linear-gradient(135deg, rgba(52, 211, 153, 0.25) 0 4px, transparent 4px 9px); }
-.mx-seg-progress { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, rgba(52, 211, 153, 0.25), rgba(52, 211, 153, 0.55)); box-shadow: 4px 0 10px rgba(52, 211, 153, 0.6); transition: width 500ms linear; }
-.mx-key { display: inline-block; width: 0.8rem; height: 0.6rem; margin-right: 0.3rem; vertical-align: middle; border: 1px solid var(--mx-line); background: rgba(6, 78, 59, 0.35); }
-.mx-pulse { display: inline-block; width: 0.5rem; height: 0.5rem; margin-right: 0.35rem; border-radius: 999px; background: #34d399; box-shadow: var(--mx-glow); animation: mx-pulse 1.4s ease-in-out infinite; }
-@keyframes mx-pulse { 50% { opacity: 0.3; } }
-@media (prefers-reduced-motion: reduce) {
-  .mx-rain, .mx-pulse { animation: none; }
-  .mx-seg, .mx-seg-progress, .mx-btn { transition: none; }
-}
-
-/* The terminal look (team portal and projector): amber and green on black, monospace, square corners, dense panels.
-   The team portal's components are written with Tailwind's slate and tint colours; inside .term those colours are
-   redrawn as a dark palette, so every team page turns dark without each class being rewritten (white becomes the
-   panel colour, slate-900 the amber of headings and primary buttons, the tints dark washes with bright text). The
-   organisers' console has no .term and keeps its light look. */
+/* The Bloomberg terminal look (the team portals, ported from the PRIMUS app): amber and green on black, monospace,
+   square corners, dense panels. Every team component is drawn with the matrix tokens (--mx-*), so inside .term the
+   tokens are redrawn in the terminal palette: phosphor becomes amber (headings, keys, primary buttons), paper a light
+   grey, the lines a cool dark grey; green stays for gains and cash, red for losses. */
 .term {
   color-scheme: dark;
   font-family: var(--font-mono);
@@ -188,73 +561,27 @@ body {
   --term-cyan: #4fd1ff;
   --term-line: #1f262d;
 
-  --color-white: #0a0d10;
-  --color-slate-50: #000000;
-  --color-slate-100: #12161b;
-  --color-slate-200: #1f262d;
-  --color-slate-300: #2f3841;
-  --color-slate-400: #56616c;
-  --color-slate-500: #8b97a3;
-  --color-slate-600: #a9b3bc;
-  --color-slate-700: #c5ccd3;
-  --color-slate-800: #e3e7ea;
-  --color-slate-900: #ffa028;
-  --color-slate-950: #ffb54d;
+  --mx-black: #000000;
+  --mx-green: #ffa028;
+  --mx-green-mid: #ffb54d;
+  --mx-green-dim: #b36b0f;
+  --mx-green-deep: #3a2405;
+  --mx-paper: #e3e7ea;
+  --mx-muted: #8b97a3;
+  --mx-amber: #ffcf66;
+  --mx-red: #ff4d4d;
+  --mx-red-soft: #ff7a7a;
+  --mx-panel: #0a0d10;
+  --mx-raised: #12161b;
+  --mx-line: #1f262d;
+  --mx-glow-text: none;
+  --mx-glow-box: 0 0 0 1px #1f262d;
 
-  --color-emerald-50: #04170e;
-  --color-emerald-100: #072414;
-  --color-emerald-200: #0d3d24;
-  --color-emerald-300: #2ee07f;
-  --color-emerald-400: #2ee07f;
-  --color-emerald-500: #22c55e;
-  --color-emerald-600: #1fbf6a;
-  --color-emerald-700: #3ee58a;
-  --color-emerald-800: #5cf09f;
-  --color-emerald-900: #8af7bf;
-  --color-emerald-950: #8af7bf;
-
-  --color-red-50: #1c0606;
-  --color-red-100: #2a0909;
-  --color-red-200: #4d1111;
-  --color-red-300: #ff7a7a;
-  --color-red-500: #ef4444;
-  --color-red-600: #ff4d4d;
-  --color-red-700: #ff5f5f;
-  --color-red-800: #ff7a7a;
-  --color-red-900: #ff9a9a;
-  --color-red-950: #ff9a9a;
-
-  --color-amber-50: #1c1300;
-  --color-amber-100: #2a1d00;
-  --color-amber-200: #4d3500;
-  --color-amber-300: #ffcf66;
-  --color-amber-400: #ffb020;
-  --color-amber-700: #ffb84d;
-  --color-amber-800: #ffc24d;
-  --color-amber-900: #ffd27a;
-  --color-amber-950: #ffe0a3;
-
-  --color-sky-50: #04121c;
-  --color-sky-100: #06192a;
-  --color-sky-200: #0d3550;
-  --color-sky-700: #4fd1ff;
-  --color-sky-800: #5cc8ff;
-  --color-sky-900: #8fd9ff;
-
-  --color-violet-50: #120a1f;
-  --color-violet-100: #1a0f2e;
-  --color-violet-200: #2e1a52;
-  --color-violet-600: #9d6bff;
-  --color-violet-700: #a983ff;
-  --color-violet-800: #b896ff;
-
-  --radius-xs: 0;
   --radius-sm: 0;
   --radius-md: 0;
   --radius-lg: 0;
   --radius-xl: 0;
-  --shadow-sm: 0 0 #0000;
-  --shadow: 0 0 #0000;
+  --radius-2xl: 0;
 
   --chart-up: #2ee07f;
   --chart-down: #ff4d4d;
@@ -268,79 +595,18 @@ body {
   --chart-tag-text: #000000;
 
   background: var(--term-bg);
-  color: var(--color-slate-800);
+  color: var(--mx-paper);
 }
 .term ::selection { background: var(--term-amber); color: #000; }
-/* Panels: a thin frame and a header strip like a terminal window, the title in amber capitals. */
-.term .msim-panel { border-color: var(--term-line); }
-.term .msim-panel-head {
-  background: #12161b;
-  border-color: var(--term-line);
-  padding-top: 0.375rem;
-  padding-bottom: 0.375rem;
-}
-.term .msim-panel-head > h2 {
-  color: var(--term-amber);
-  font-size: 0.8125rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.term .msim-badge { border-radius: 0; letter-spacing: 0.04em; text-transform: uppercase; }
+.term h2 { letter-spacing: 0.06em; }
 .term table thead tr { color: var(--term-amber-dim); }
-.term input, .term select, .term textarea { background: #000; color: var(--color-slate-800); }
-.term input:focus, .term select:focus, .term textarea:focus { border-color: var(--term-amber); }
+.term input:focus, .term select:focus, .term textarea:focus { border-color: var(--term-amber); outline-color: var(--term-amber); }
 /* A blinking block cursor after the team code in the header. */
 @keyframes term-blink { 50% { opacity: 0; } }
 .term-cursor { animation: term-blink 1.1s steps(1) infinite; }
-@media (prefers-reduced-motion: reduce) {
-  .term-cursor { animation: none; }
-}
-
-/* The projector in the terminal look: monospace and square corners on every screen of the stage (board, banner,
-   ticker and the takeovers). The stage is already black with white text, so its colours are set in the components. */
-.term-stage {
-  font-family: var(--font-mono);
-  --radius-xs: 0;
-  --radius-sm: 0;
-  --radius-md: 0;
-  --radius-lg: 0;
-  --radius-xl: 0;
-  --radius-2xl: 0;
-  --term-amber: #ffa028;
-  --term-amber-dim: #b36b0f;
-  --term-green: #2ee07f;
-  --term-red: #ff4d4d;
-  --term-cyan: #4fd1ff;
-  --chart-up: #2ee07f;
-  --chart-down: #ff4d4d;
-  --chart-grid: #1f262d;
-  --chart-axis: #8b97a3;
-  --chart-marker: #56616c;
-  --chart-marker-text: #ffa028;
-  --chart-second: #4fd1ff;
-  --chart-volume: #56616c;
-  --chart-average: #ffa028;
-  --chart-tag-text: #000000;
-}
-
-/* The latest point of a live chart: a ring that grows and fades, so a screen shows it is following the market. */
-@keyframes msim-live-ping {
-  from { opacity: 0.7; transform: scale(1); }
-  to { opacity: 0; transform: scale(3); }
-}
 /* The latest candle of a live chart: a frame that fades in and out. */
-@keyframes msim-live-candle {
-  50% { opacity: 0.15; }
-}
+@keyframes msim-live-candle { 50% { opacity: 0.15; } }
 .msim-live-candle { animation: msim-live-candle 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .msim-live-candle { animation: none; }
-}
-.msim-live-ping {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: msim-live-ping 1.6s ease-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .msim-live-ping { animation: none; opacity: 0; }
+  .term-cursor, .msim-live-candle { animation: none; }
 }

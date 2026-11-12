@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/team/trade", label: "Orders" },
-  { href: "/team/trade/positions", label: "Portfolio" },
+  { href: "/team/trade/positions", label: "Positions" },
   { href: "/team/trade/history", label: "History" },
+  { href: "/team/trade/ipo", label: "IPO" },
 ] as const;
 
-// The trading views. On a phone the pills wrap onto a second line (never wider than the screen).
+// The fund's trading views. On a phone the pills wrap onto a second line (never wider than the screen).
 export function TradeTabs() {
   const pathname = usePathname();
   return (
@@ -22,7 +23,7 @@ export function TradeTabs() {
             href={t.href}
             aria-current={active ? "page" : undefined}
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              active ? "bg-slate-900 text-black" : "bg-white text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
+              active ? "bg-phosphor-deep text-phosphor" : "bg-panel text-paper ring-1 ring-inset ring-line hover:bg-raised"
             }`}
           >
             {t.label}

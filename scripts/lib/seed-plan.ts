@@ -1,30 +1,25 @@
-// Builds everything the seed needs, without touching the network: team codes, names, members, derived passwords,
-// staff, the night's schedule, the content decks and the twist.
+// Builds everything the seed needs, without touching the network: team codes, names, members,
+// derived passwords, staff, the night's schedule and the content decks.
 
 import {
-  RULES,
+  TRACKS,
   parseCsvObjects,
   buildSchedule,
+  type EventFormat,
   teamCode,
   teamEmail,
   type BuiltSchedule,
   type CrisisCard,
-  type PreparedBulletin,
   type ProblemCard,
+  type Track,
 } from "@msim/engine";
 import { derivePassword } from "./credentials";
 
-/** Every team starts Round 3 with $50,000 of virtual cash, plus the Round 2 grant. */
-export const STARTING_CASH_CENTS = RULES.START_CASH; // $50,000; the Round 2 grant comes at 02:45
-/**
- * The live night: 200 team logins, every one unregistered until an organiser ticks it on the Registration tab before
- * the draw. A rehearsal can have from 3 up to MAX_TEAMS, all registered.
- */
-export const LIVE_TEAMS = 200;
-export const MAX_TEAMS = 200;
-/** Backup teams printed for the live event (none: the 200 logins are the spares), and the most any event may have. */
-export const LIVE_BACKUPS = 0;
-export const MAX_BACKUPS = 20;
+export const STARTING_CASH_CENTS: Record<Track, number> = {
+  PRODUCT: 0, // receives $50,000 seed money when its squad is formed
+  CONSULTING: 0,
+  FINANCE: 50_000_000, // $500,000
+};
 
 export interface MemberRow {
   full_name: string;
@@ -32,6 +27,7 @@ export interface MemberRow {
 }
 
 export interface TeamRow {
+  track: Track;
   name?: string;
   members?: MemberRow[];
 }
@@ -49,34 +45,27 @@ export interface SeedOptions {
   rehearsal: boolean;
   clockSpeed: number;
   startsAt: Date;
-  teamCount: number;
+  teamsPerTrack: number;
   cardSecret: string;
   emailDomain: string;
   teamRows?: TeamRow[];
   staff?: StaffRow[];
   problemCards?: ProblemCard[];
   crisisCards?: CrisisCard[];
-  twist?: PreparedBulletin;
   seedCommitment?: string;
-  /** The letter of every team code. Default: "T" for the live event, "X" for a rehearsal. */
-  codeLetter?: string;
-  /** Backup teams an organiser can activate before the draw (codes B001… live, Y001… in a rehearsal). Default none. */
-  backupCount?: number;
-  /** The letter of the backup codes. Default: "B" for the live event, "Y" for a rehearsal. */
-  backupLetter?: string;
-  backupRows?: TeamRow[];
-  /** Every team starts unregistered and plays only once an organiser registers it. Default: on live, off in a rehearsal. */
-  registration?: boolean;
+  /** Letter before every team code. Default: none for the live event, "X" for a rehearsal. */
+  codePrefix?: string;
+  /** CLASSIC (the one-night game) or PRIMUS (three rounds; docs/PRIMUS.md). Default CLASSIC. */
+  format?: EventFormat;
 }
 
 export interface PlannedTeam {
   code: string;
+  track: Track;
   name: string;
   email: string;
   password: string;
   members: MemberRow[];
-  /** A backup: not playing unless an organiser activates it before the draw. */
-  backup: boolean;
 }
 
 export interface PlannedStaff extends StaffRow {
@@ -92,68 +81,50 @@ export interface SeedPlan {
     timezone: "Asia/Kolkata";
     starts_at: string;
     seed_commitment: string | null;
+    format: EventFormat;
   };
   schedule: BuiltSchedule;
   teams: PlannedTeam[];
   staff: PlannedStaff[];
   problem_cards: ProblemCard[];
   crisis_cards: CrisisCard[];
-  twist: PreparedBulletin | null;
-  starting_cash_cents: number;
-  /** Teams start unregistered (status BACKUP) and an organiser registers the ones that play. */
-  registration: boolean;
+  starting_cash_cents: Record<Track, number>;
 }
+
+const DEFAULT_NAME: Record<Track, (code: string) => string> = {
+  PRODUCT: (c) => `Product Team ${c}`,
+  CONSULTING: (c) => `Consulting Team ${c}`,
+  FINANCE: (c) => `Finance Team ${c}`,
+};
 
 export function buildSeedPlan(o: SeedOptions): SeedPlan {
   if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(o.slug)) throw new Error(`bad event slug: ${o.slug}`);
-  if (!o.rehearsal && o.teamCount !== LIVE_TEAMS) throw new Error(`the live event has exactly ${LIVE_TEAMS} teams`);
-  if (!Number.isInteger(o.teamCount) || o.teamCount < 3 || o.teamCount > MAX_TEAMS) {
-    throw new Error(`between 3 and ${MAX_TEAMS} teams`);
-  }
+  if (!o.rehearsal && o.teamsPerTrack !== 50) throw new Error("the live event has exactly 50 teams per track");
+  if (o.teamsPerTrack < 3 || o.teamsPerTrack > 50) throw new Error("between 3 and 50 teams per track");
   if (o.seedCommitment && !/^[0-9a-f]{64}$/.test(o.seedCommitment)) {
     throw new Error("seed commitment must be a lower-case SHA-256 hex digest");
   }
-  const letter = o.codeLetter ?? (o.rehearsal ? "X" : "T");
-  if (!o.rehearsal && letter !== "T") throw new Error("live team codes start with T");
-  if (o.rehearsal && letter === "T") throw new Error("rehearsal team codes use another letter than T");
+  const prefix = o.codePrefix ?? (o.rehearsal ? "X" : "");
+  if (!o.rehearsal && prefix !== "") throw new Error("live team codes have no prefix");
 
-  const rows = o.teamRows ?? [];
-  if (rows.length > o.teamCount) throw new Error(`${rows.length} teams in the CSV, but only ${o.teamCount} teams`);
   const teams: PlannedTeam[] = [];
-  for (let i = 1; i <= o.teamCount; i++) {
-    const code = teamCode(i, letter);
-    const row = rows[i - 1];
-    const members = (row?.members ?? []).filter((m) => m.full_name.trim() !== "");
-    if (members.length > 5) throw new Error(`team ${code}: at most five members`);
-    teams.push({
-      code,
-      name: row?.name?.trim() || `Team ${code}`,
-      email: teamEmail(code, o.emailDomain),
-      password: derivePassword(o.cardSecret, o.slug, code),
-      members,
-      backup: false,
-    });
-  }
-
-  const backups = o.backupCount ?? (o.rehearsal ? 0 : LIVE_BACKUPS);
-  if (!Number.isInteger(backups) || backups < 0 || backups > MAX_BACKUPS) throw new Error(`between 0 and ${MAX_BACKUPS} backup teams`);
-  const backupLetter = o.backupLetter ?? (o.rehearsal ? "Y" : "B");
-  if (backupLetter === letter) throw new Error(`backup codes need another letter than ${letter}`);
-  const brows = o.backupRows ?? [];
-  if (brows.length > backups) throw new Error(`${brows.length} backup teams in the CSV, but only ${backups} backups`);
-  for (let i = 1; i <= backups; i++) {
-    const code = teamCode(i, backupLetter);
-    const row = brows[i - 1];
-    const members = (row?.members ?? []).filter((m) => m.full_name.trim() !== "");
-    if (members.length > 5) throw new Error(`team ${code}: at most five members`);
-    teams.push({
-      code,
-      name: row?.name?.trim() || `Backup ${code}`,
-      email: teamEmail(code, o.emailDomain),
-      password: derivePassword(o.cardSecret, o.slug, code),
-      members,
-      backup: true,
-    });
+  for (const track of TRACKS) {
+    const rows = (o.teamRows ?? []).filter((r) => r.track === track);
+    if (rows.length > o.teamsPerTrack) {
+      throw new Error(`${rows.length} ${track} teams in the CSV, but only ${o.teamsPerTrack} per track`);
+    }
+    for (let i = 1; i <= o.teamsPerTrack; i++) {
+      const code = teamCode(track, i, prefix);
+      const row = rows[i - 1];
+      teams.push({
+        code,
+        track,
+        name: row?.name?.trim() || DEFAULT_NAME[track](code),
+        email: teamEmail(code, o.emailDomain),
+        password: derivePassword(o.cardSecret, o.slug, code),
+        members: (row?.members ?? []).filter((m) => m.full_name.trim() !== ""),
+      });
+    }
   }
 
   const staff: PlannedStaff[] = (o.staff ?? []).map((s) => ({
@@ -170,7 +141,7 @@ export function buildSeedPlan(o: SeedOptions): SeedPlan {
   }
   const allRolls = teams.flatMap((t) => t.members.map((m) => m.roll_number).filter(Boolean));
   const dup = allRolls.find((r, i) => allRolls.indexOf(r) !== i);
-  if (dup) throw new Error(`roll number ${dup} appears more than once: each person may be in one team only`);
+  if (dup) throw new Error(`roll number ${dup} appears in more than one team`);
 
   return {
     event: {
@@ -181,15 +152,14 @@ export function buildSeedPlan(o: SeedOptions): SeedPlan {
       timezone: "Asia/Kolkata",
       starts_at: o.startsAt.toISOString(),
       seed_commitment: o.seedCommitment ?? null,
+      format: o.format ?? "CLASSIC",
     },
-    schedule: buildSchedule(o.clockSpeed),
+    schedule: buildSchedule(o.startsAt, o.clockSpeed, o.format ?? "CLASSIC"),
     teams,
     staff,
     problem_cards: o.problemCards ?? [],
     crisis_cards: o.crisisCards ?? [],
-    twist: o.twist ?? null,
     starting_cash_cents: STARTING_CASH_CENTS,
-    registration: o.registration ?? !o.rehearsal,
   };
 }
 
@@ -203,7 +173,13 @@ export function toSeedPayload(plan: SeedPlan, userIds: ReadonlyMap<string, strin
   return {
     event: plan.event,
     schedule: plan.schedule,
-    teams: plan.teams.map((t) => ({ code: t.code, name: t.name, user_id: idOf(t.email), members: t.members, status: t.backup || plan.registration ? "BACKUP" : "ACTIVE" })),
+    teams: plan.teams.map((t) => ({
+      code: t.code,
+      track: t.track,
+      name: t.name,
+      user_id: idOf(t.email),
+      members: t.members,
+    })),
     staff: plan.staff.map((s) => ({
       user_id: idOf(s.email),
       role: s.role,
@@ -212,26 +188,32 @@ export function toSeedPayload(plan: SeedPlan, userIds: ReadonlyMap<string, strin
     })),
     problem_cards: plan.problem_cards,
     crisis_cards: plan.crisis_cards,
-    twist: plan.twist,
     starting_cash_cents: plan.starting_cash_cents,
   };
 }
 
 // ───────────────────────────── CSV inputs ─────────────────────────────
 
-/** Columns: team_name, member1_name, member1_roll, … member5_name, member5_roll. */
+const TRACK_ALIASES: Record<string, Track> = {
+  product: "PRODUCT",
+  p: "PRODUCT",
+  consulting: "CONSULTING",
+  c: "CONSULTING",
+  finance: "FINANCE",
+  f: "FINANCE",
+};
+
+/** Columns: track, team_name, member1_name, member1_roll, … member4_name, member4_roll. */
 export function teamRowsFromCsv(text: string): TeamRow[] {
   return parseCsvObjects(text).map((r, i) => {
-    if (r.track !== undefined) throw new Error("teams CSV: PRIMUS teams have no track column (every team plays all three rounds)");
+    const track = TRACK_ALIASES[(r.track ?? "").toLowerCase()];
+    if (!track) throw new Error(`teams CSV row ${i + 2}: unknown track "${r.track}"`);
     const members: MemberRow[] = [];
-    for (let m = 1; m <= 5; m++) {
+    for (let m = 1; m <= 4; m++) {
       const full_name = r[`member${m}_name`] ?? "";
       if (full_name) members.push({ full_name, roll_number: r[`member${m}_roll`] || undefined });
     }
-    if (members.length === 1) {
-      throw new Error(`teams CSV row ${i + 2}: a team has 2 to 5 members (found ${members.length})`);
-    }
-    return { name: r.team_name, members };
+    return { track, name: r.team_name, members };
   });
 }
 
@@ -247,12 +229,6 @@ export function staffFromCsv(text: string): StaffRow[] {
   });
 }
 
+
 // The deck formats live in the engine (shared with the control panel's content upload).
-export {
-  bulletinFromCsv,
-  crisisCardsFromCsv,
-  problemCardsFromCsv,
-  type CrisisCard,
-  type PreparedBulletin,
-  type ProblemCard,
-} from "@msim/engine";
+export { crisisCardsFromCsv, problemCardsFromCsv, type CrisisCard, type ProblemCard } from "@msim/engine";

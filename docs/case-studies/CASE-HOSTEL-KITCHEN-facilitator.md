@@ -1,0 +1,130 @@
+# Case: The Hostel Kitchen · facilitator notes
+
+**Organisers and judges only. Do not hand this to contestants.** It goes with the contestant pack
+(CASE-HOSTEL-KITCHEN.md): model answers, the numbers behind them, the scores to expect, and how to run the case.
+
+---
+
+## 1. What the case tests
+
+| Round | Product | Consulting | Finance |
+|---|---|---|---|
+| 1 · Build | Turning messy data into a per-box business with a break-even | Improving someone else's PRD; reading other companies for call 1 | Telling strong PRDs from weak ones; IPO sizing |
+| 2 · Crisis | Redesigning the operation under a hard rule, keeping shares | Pricing a fair fee and deal; co-writing a costed plan | Investing in a rescue at a fair price; trading the shock |
+| 3 · Close | Answering news with numbers in 100 words | Calls 2 and 3 from the plans and the flash | Anchoring on AI prices; closing out risk |
+
+The trap in the data: **hygiene is students' biggest worry (52%)**, and the crisis turns it into law. Strong teams
+plan for food safety from the PRD on (its **Key risks** section asks for it); weak teams discover it at 00:30.
+
+---
+
+## 2. Round 1 model answer (the PRD, ≤800 words)
+
+A strong company sells **dinner surplus as ₹50 "late boxes" at a counter in each hostel, 9:30–11 pm**, ordered on a
+WhatsApp bot and paid by UPI.
+
+**The numbers a strong PRD shows** (all from the exhibits):
+
+| Line | Value |
+|---|---|
+| Supply | 900 dinner plates wasted a day (Exhibit 1) |
+| Demand | 68% would buy at ₹50 (Exhibit 2); assume **60% of the 900 sold = 540 boxes a day** |
+| Per box | ₹50 price − ₹25 to Annapurna − ₹7 box = **₹18 contribution** |
+| Daily costs | 6 counter staff × 1.5 h × ₹120 = ₹1,080; ready-made bot ₹4,000/month ≈ ₹133/day |
+| **Profit** | 540 × ₹18 − ₹1,080 − ₹133 ≈ **₹8,500 a day** |
+| **Break-even** | (₹32,400 staff + ₹4,000 bot a month) ÷ (₹18 × 30) ≈ **67 boxes a day** |
+| One-off | 6 insulated carriers × ₹1,800 = ₹10,800 |
+
+**Why Annapurna says yes:** ₹25 × 540 = ₹13,500 a day for food it would bin, ₹364 a day less disposal, and waste falls
+from 23% to (2,900 − 540) ÷ 12,600 = **18.7%**, under the 20% audit line, which saves **₹50,000 a quarter** in penalties.
+
+**Competitive edge** that convinces: an exclusive deal with Annapurna for the contract year, hostel-council
+counters, and the ordering data (who eats what, when), not "we have an app".
+
+**The three PRD sections teams most often leave thin:**
+
+| Section | A strong answer |
+|---|---|
+| Core features and MVP scope | Week 1: one hostel, one counter, WhatsApp orders + UPI, insulated carriers. Left out: an app, delivery to rooms, other meals. |
+| Success metrics | Boxes sold a day (target 540), waste % (23% → under 20%), repeat buyers in week 2 (40%+), hygiene complaints (zero). |
+| Key risks | Hygiene (food kept above 60 °C, served within 90 minutes, a trained counter lead); Annapurna saying no (the ₹50,000 penalty it avoids); low demand (start with one hostel, expand on numbers). |
+
+**Expected scores** (rubric: problem 20, solution and MVP 20, metrics 15, business model 15, feasibility and risks 15,
+clarity 15): a PRD with per-box maths, a break-even, measurable metrics and an answer to hygiene: **80–89** (+10%). Good idea, no
+numbers: **60–69**. "An app to reduce food waste" with no customer or price: **40–55**.
+
+**Q&A questions worth rewarding** (Finance): *Who owns the food at 9:30 pm? What happens on days 300 boxes are left?
+What stops Annapurna doing this itself?*
+
+---
+
+## 3. Round 2 model answer (rescue plan)
+
+The rule kills the 9:30 pm box: dinner is cooked at 7:00 pm, so it is 2½ hours old.
+
+**Three options a strong plan weighs:**
+
+| Option | Cost | Effect |
+|---|---|---|
+| A. "Last call" boxes sold 8:30–9:00 pm, inside the 2 hours | none | Fewer buyers (assume 35% of 900 = 315), price down to ₹40 → margin ₹8 → about **₹2,000 a day** |
+| B. Chill the surplus below 5 °C at 8:45 pm and serve chilled/reheated boxes later | 6 chillers × ₹48,000 + 6 × ₹6,000 training = **₹3.24 lakh**, + ₹240/day power | Keeps the ₹50 box and ~540 a day; payback ≈ **40 days** |
+| C. Ask Annapurna to cook a smaller second dinner batch at 9:00 pm | Annapurna's cost | Fresh food, but no longer "surplus": loses the waste story and the ₹25 deal |
+
+**Strong recommendation:** A now (weeks 1–4, no cash needed, passes the first inspection), B funded by the rescue
+deal from week 2, back to ~540 boxes by week 6, profit back to ~₹8,000 a day by month 2. Risks: inspectors reject
+reheating (plan B: chilled-only menu, curd rice and salads), chillers delayed (keep A running).
+
+**Deal advice for facilitators to watch:** a price around **75–85% of the post-crisis price** is fair to both sides.
+Below 55% with a weak plan raises a collusion flag; at 100% the fund may not sign, and an unsigned deal caps the plan
+at 50.
+
+**Expected scores:** costed options + a phased plan + the deal's money tied to the chillers: **80–89** (+20%). One
+option, no money: **55–65**. "We will follow the rules and continue": **30–45** (−20%).
+
+---
+
+## 4. Round 3 model answer (flash, ≤100 words)
+
+> Cooking gas is about ₹4 of Annapurna's ₹42 plate, so +25% adds ~₹1. Our boxes are surplus Annapurna has already
+> cooked, so our cost does not change; but Annapurna may cook less. This week we hold the ₹50 box, offer Annapurna ₹27
+> instead of ₹25 for three months so it keeps cooking our volume (cost ₹1,080 a day), and promote boxes against
+> delivery apps, whose prices will rise. Net: margin ₹16, still ~₹7,400 a day.
+
+**Expected:** a number-based answer like this: **75–85** (+5%). A generic "we will absorb costs": **50–60** (0).
+Ignoring the news: **below 50** (−5%).
+
+---
+
+## 5. Running the case
+
+**On the night, every squad plays this case.** Upload the one-case decks from `seed/one-case/` (Admin → Content,
+before the draw): a problem deck of **one card** gives every squad this case at the draw, already chosen (there is
+nothing to pick), and a crisis deck of **one card** hits every company with the food-safety rule at 00:30. Prepare
+`seed/flash-bulletins/07-cooking-gas.csv` as the flash bulletin. Squads, coverage and the seed check work as usual.
+Hand the contestant pack to every squad at the briefing.
+
+With every squad on the same case, the judge compares like with like: the score bands in sections 2–4 apply to all
+50 companies, and the market sorts them by execution (numbers, the hygiene answer, the deal) rather than by problem.
+
+**A practice round** a week before, two ways.
+
+*On paper, 90 minutes.* Squads of three teams around a table:
+
+- Round 1 (30 min): Product writes the PRD on the seven-section template; Finance prepares questions; Consulting coaches. Judges
+  score with the rubric; announce IPO prices with the tier table.
+- Round 2 (35 min): announce the crisis; fee and deal on worksheet B (give each squad a post-crisis price, e.g. IPO
+  price × 1.05 × 0.85); plan on the template.
+- Round 3 (15 min): read the flash; 100-word answers in 10 minutes; score.
+- Debrief (10 min): compare the strongest and weakest plans; show how the tiers moved the price.
+
+*On the platform*, in a rehearsal event seeded with the one-case decks:
+
+    pnpm seed --slug rehearsal-1 --rehearsal --starts-at <time> --teams-per-track 3 \
+      --problems seed/one-case/problem-cards.csv --crises seed/one-case/crisis-cards.csv
+
+**Debrief questions**
+
+- Which number in your PRD did the judge reward most? Which metric was missing?
+- Was your deal price fair? Who gave up what?
+- If your PRD's Key risks had covered hygiene, what would the crisis have cost you?
+- Funds: which company did the market over-price compared with its AI price, and why?

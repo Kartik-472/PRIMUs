@@ -6,7 +6,7 @@ import pg from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { buildSeedPlan, type SeedPlan } from "../../../../scripts/lib/seed-plan";
 import { seedWithLogins } from "../../../../scripts/lib/seed-run";
-import { Night } from "../../../../supabase/tests/night";
+import { CRISIS_DECK, Night } from "../../../../supabase/tests/night";
 import { TEST_STAFF } from "../../../../supabase/tests/helpers";
 import { e2eEnv } from "./env";
 
@@ -31,22 +31,22 @@ export interface E2eEvent {
   password(login: string): string;
 }
 
-export async function seedE2eEvent({ slug, prefix, teamCount = 6 }: { slug: string; prefix: string; teamCount?: number }): Promise<E2eEvent> {
+export async function seedE2eEvent({ slug, prefix, squads = 3, format = "CLASSIC" }: { slug: string; prefix: string; squads?: number; format?: "CLASSIC" | "PRIMUS" }): Promise<E2eEvent> {
   const env = e2eEnv();
   const plan = buildSeedPlan({
     slug,
     name: `E2E ${slug}`,
     rehearsal: true,
+    format,
     clockSpeed: 1,
     startsAt: new Date(Date.now() + 3_600_000),
-    teamCount,
+    teamsPerTrack: squads,
     cardSecret: env.CARD_SECRET,
     emailDomain: env.TEAM_EMAIL_DOMAIN,
     staff: TEST_STAFF,
-    problemCards: Array.from({ length: Math.ceil(teamCount / 3) + 1 }, (_, i) => ({ number: i + 1, sector: "Test", title: `Problem ${i + 1}`, body: "A problem." })),
-    crisisCards: Array.from({ length: 10 }, (_, i) => ({ number: i + 1, category: `Type ${i + 1}`, title: `Crisis ${i + 1}`, body: "Something bad." })),
-    twist: { title: "The twist", body: "Plastic packaging is banned from January." },
-    codeLetter: prefix,
+    problemCards: Array.from({ length: squads + 2 }, (_, i) => ({ number: i + 1, sector: "Test", title: `Problem ${i + 1}`, body: "A problem." })),
+    crisisCards: CRISIS_DECK,
+    codePrefix: prefix,
   });
   const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   process.env.SEED_QUIET = "1";

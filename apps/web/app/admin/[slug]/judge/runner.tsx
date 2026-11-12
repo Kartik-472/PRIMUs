@@ -2,7 +2,7 @@
 
 // "Run the judge here": while it is on, this console works the judge queue by calling POST /api/judge/work again and
 // again (each call claims runs for about 50 s, JUDGE_CONCURRENCY at a time, and answers with what it did). With
-// nothing to claim it asks again every 5 s, so runs that are queued later (a retry, a re-run, calibration)
+// nothing to claim it asks again every 5 s, so runs that are queued later (extra runs, a retry, a re-run, calibration)
 // are picked up. Several consoles can run it at once: they share the queue. It switches itself off on any refusal
 // (signed out, not an organiser, the fake judge on a live event, a missing API key, a configuration error) and after
 // three network failures in a row. It stays on across a reload of the page (this tab only).
@@ -39,7 +39,7 @@ interface Totals {
 
 const IDLE_MS = 5000;
 const NETWORK_RETRIES = 3;
-const storageKey = (eventId: string) => `primus-judge-runner:${eventId}`;
+const storageKey = (eventId: string) => `msim-judge-runner:${eventId}`;
 
 function remembered(eventId: string): boolean {
   try {
@@ -179,21 +179,21 @@ export function JudgeRunner({ eventId, fake, canRun }: { eventId: string; fake: 
         )}
         {fake ? <Badge tone="amber">FAKE JUDGE</Badge> : null}
         {on ? (
-          <span className="text-sm text-slate-600" role="status">
+          <span className="text-sm text-paper" role="status">
             {busy ? "Judging…" : "Waiting for runs…"}
           </span>
         ) : null}
       </div>
       {totals && totals.turns > 0 ? (
-        <p className="text-sm text-slate-600" data-testid="judge-runner-totals">
+        <p className="text-sm text-paper" data-testid="judge-runner-totals">
           This console: {totals.done} run{totals.done === 1 ? "" : "s"} done
           {totals.calibration ? `, ${totals.calibration} calibration` : ""}, {totals.sealed} sealed, {totals.retried} sent back to the queue,{" "}
-          <span className={totals.failed ? "font-semibold text-red-700" : ""}>{totals.failed} failed</span>
+          <span className={totals.failed ? "font-semibold text-danger-soft" : ""}>{totals.failed} failed</span>
           {last ? ` · last turn ${Math.round(last.ms / 1000)} s` : ""}
         </p>
       ) : null}
       {problem ? (
-        <p className="text-sm font-semibold text-red-700" role="alert" data-testid="judge-runner-problem">
+        <p className="text-sm font-semibold text-danger-soft" role="alert" data-testid="judge-runner-problem">
           {problem}
         </p>
       ) : null}

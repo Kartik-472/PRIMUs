@@ -1,9 +1,9 @@
-// Rules for the AI judge that do not need the model: rubrics, removing text aimed at the judge, the injection penalty,
-// anonymising, validating the model's JSON, the median of three readings and the final score.
+// Rules for the AI judge that do not need the model: rubrics, removing text aimed at the judge,
+// anonymising, validating the model's JSON, the median of runs and the final score.
 
 import { clamp } from "./money";
 import { RULES } from "./rules";
-import { SUBMISSION_TYPES, type SubmissionType } from "./types";
+import { SUBMISSION_TYPES, byKind, type SubmissionType } from "./types";
 
 export interface RubricLine {
   key: string;
@@ -11,24 +11,59 @@ export interface RubricLine {
   max: number;
 }
 
-export const RUBRICS: Record<SubmissionType, readonly RubricLine[]> = {
-  PRD: [
-    { key: "problem_user", label: "Problem and user", max: 20 },
-    { key: "solution_requirements", label: "Solution and requirements", max: 25 },
-    { key: "business_model", label: "Business model and per-pack maths", max: 20 },
-    { key: "go_to_market", label: "Go to market", max: 15 },
-    { key: "success_metrics", label: "Success metrics", max: 10 },
-    { key: "risks", label: "Risks and assumptions", max: 10 },
+export const RUBRICS: Record<SubmissionType, readonly RubricLine[]> = byKind<readonly RubricLine[]>({
+  PITCH: [
+    { key: "problem", label: "Problem and target user", max: 20 },
+    { key: "solution", label: "Solution and MVP scope", max: 20 },
+    { key: "metrics", label: "Success metrics", max: 15 },
+    { key: "business_model", label: "Business model", max: 15 },
+    { key: "feasibility", label: "Feasibility and risks", max: 15 },
+    { key: "clarity", label: "Clarity", max: 15 },
+  ],
+  PLAN: [
+    { key: "solves_crisis", label: "Solves the crisis", max: 25 },
+    { key: "money_logic", label: "Money logic: costs, revenue and cash", max: 20 },
+    { key: "funding_and_deal", label: "Funding: deal signed and terms sensible", max: 20 },
+    { key: "time_to_recovery", label: "Time to recovery", max: 15 },
+    { key: "new_risks", label: "New risks it creates (fewer scores higher)", max: 10 },
+    { key: "next_steps", label: "Clear, practical next steps", max: 10 },
+  ],
+  FLASH: [
+    { key: "responds_to_news", label: "Responds directly to the news", max: 50 },
+    { key: "realistic", label: "Realistic", max: 30 },
+    { key: "clear", label: "Clear", max: 20 },
+  ],
+  MEMO: [
+    { key: "diagnosis", label: "Diagnosis", max: 25 },
+    { key: "options", label: "Options and trade-offs", max: 20 },
+    { key: "recommendation", label: "Recommendation", max: 20 },
+    { key: "numbers", label: "Numbers", max: 15 },
+    { key: "risks", label: "Risks", max: 10 },
+    { key: "next_steps", label: "Next steps", max: 10 },
+  ],
+  CRISIS: [
+    { key: "solves_crisis", label: "Solves the crisis", max: 25 },
+    { key: "money_logic", label: "Money logic", max: 20 },
+    { key: "consultant_advice", label: "Use of consultant advice", max: 15 },
+    { key: "time_to_recovery", label: "Time to recovery", max: 15 },
+    { key: "new_risks", label: "New risks it creates (fewer scores higher)", max: 15 },
+    { key: "next_steps", label: "Clear, practical next steps", max: 10 },
   ],
   SOLUTION: [
-    { key: "diagnosis", label: "Diagnosis", max: 20 },
-    { key: "options", label: "Options", max: 20 },
-    { key: "recommendation", label: "Recommendation backed by per-pack numbers", max: 25 },
-    { key: "feasibility", label: "Feasibility and cost", max: 15 },
-    { key: "timeline", label: "Timeline and milestones", max: 10 },
-    { key: "risks", label: "Risks", max: 10 },
+    { key: "fit", label: "Fit to the statement", max: 25 },
+    { key: "differentiation", label: "Differentiation from rivals", max: 20 },
+    { key: "feasibility", label: "Feasibility", max: 20 },
+    { key: "business_impact", label: "Business impact", max: 20 },
+    { key: "clarity", label: "Clarity", max: 15 },
   ],
-};
+  ADVICE: [
+    { key: "diagnosis", label: "Diagnosis", max: 25 },
+    { key: "actionable_advice", label: "Actionable advice", max: 30 },
+    { key: "evidence", label: "Evidence and numbers", max: 20 },
+    { key: "fit", label: "Fit to the client's crisis", max: 15 },
+    { key: "clarity", label: "Clarity", max: 10 },
+  ],
+});
 
 for (const t of SUBMISSION_TYPES) {
   if (RUBRICS[t].reduce((s, l) => s + l.max, 0) !== 100) throw new Error(`rubric ${t} must total 100`);
@@ -44,7 +79,7 @@ for (const t of SUBMISSION_TYPES) {
  * removed, typographic quotes made plain), so zero-width characters or full-width letters cannot hide a keyword.
  */
 const DETERMINER = String.raw`(?:all|any|every|the|your|these|those|my|previous|prior|above|earlier|preceding|other|of|system)`;
-const SUBMISSION_NOUN = String.raw`(?:prd|solution|pitch|plan|answer|submission|card|team|company|idea|entry|work|proposal|response|document)`;
+const SUBMISSION_NOUN = String.raw`(?:pitch|plan|answer|submission|card|team|company|idea|entry|work|proposal|response)`;
 const SCORE_VALUE = String.raw`(?:\d{1,3}(?!\s*(?:[.,]\d|stars?\b|%|percent|\/\s*5\b|out\s+of\s+5\b))|full|top|maximum|max|perfect|highest|the\s+(?:highest|maximum|top|best))`;
 const GRADER = String.raw`(?:judges?|graders?|evaluators?|scorers?|markers?|examiners?|reviewers?|assessors?|ai|a\.i\.|assistant|language\s+model|llm|chatbot|bot|model)`;
 
@@ -109,7 +144,7 @@ export const INJECTION_PATTERNS: readonly { name: string; re: RegExp }[] = [
   {
     // Trying to close or open the XML wrapper.
     name: "tag-breakout",
-    re: /<\s*\/?\s*(?:submission|system|instructions?|rubric|assistant|user|context|problem_card|crisis_card|twist|prd|solution|data)\b[^>]*>/i,
+    re: /<\s*\/?\s*(?:submission|system|instructions?|rubric|assistant|user|context|bulletin|pitch_card|crisis_card|deal|data|advice|statement)\b[^>]*>/i,
   },
 ];
 
@@ -145,19 +180,27 @@ export function stripInjections(text: string): { clean: string; hits: InjectionH
   return { clean: kept.join("\n"), hits };
 }
 
-/** Round order for the penalty: the PRD (Round 1) comes before the crisis solution (Round 2). */
-const ORDER: Record<SubmissionType, number> = { PRD: 0, SOLUTION: 1 };
+/**
+ * The submissions of one company that count towards its second offence, in order: the classic night's pitch, plan
+ * and flash answer, or PRIMUS's PRD, crisis plans and solution. A firm's memos are its own work and never count.
+ */
+const CHAINS: readonly (readonly SubmissionType[])[] = [
+  ["PITCH", "PLAN", "FLASH"],
+  ["PITCH", "CRISIS_1", "CRISIS_2", "CRISIS_3", "CRISIS_4", "SOLUTION"],
+];
 
 /**
- * An attempt is one line removed from a team's submission. The team's second attempt (counting the PRD's lines first,
- * then the solution's) costs 10 points, once, taken from the round whose submission contains it.
- * @param attempts lines removed from this team's submission of each type
+ * A squad's second (and any later) offence costs that submission 10 points. An offence is a judged
+ * submission that had at least one line stripped; submissions count in the order PITCH → PLAN → FLASH.
+ * A Consulting team's memos (MEMO, ADVICE_k) are its own work, so they never count as a second offence. PRIMUS
+ * plans count after the PRD in the order of the night (CRISIS_1 … CRISIS_4, SOLUTION).
  */
-export function injectionPenalty(type: SubmissionType, attempts: Partial<Record<SubmissionType, number>>): number {
-  let before = 0;
-  for (const t of SUBMISSION_TYPES) if (ORDER[t] < ORDER[type]) before += attempts[t] ?? 0;
-  const through = before + (attempts[type] ?? 0);
-  return before < 2 && through >= 2 ? RULES.INJECTION_PENALTY : 0;
+export function injectionPenalty(type: SubmissionType, offended: Partial<Record<SubmissionType, boolean>>): number {
+  if (!offended[type]) return 0;
+  const chain = type === "PITCH" ? CHAINS[0]! : CHAINS.find((c) => c.includes(type));
+  if (!chain) return 0;
+  const count = chain.slice(0, chain.indexOf(type) + 1).filter((t) => offended[t]).length;
+  return count >= 2 ? RULES.INJECTION_PENALTY : 0;
 }
 
 // ───────────────────────────── Anonymising ─────────────────────────────
@@ -237,33 +280,52 @@ export function validateJudgeOutput(type: SubmissionType, raw: unknown): JudgeOu
   };
 }
 
-// ───────────────────────────── Readings and the final score ─────────────────────────────
+// ───────────────────────────── Runs and the final score ─────────────────────────────
 
-/** Exactly three readings; the median counts. */
-export function runsComplete(totals: readonly number[]): boolean {
-  return totals.length === RULES.JUDGE_RUNS;
+/** Three runs; if they spread more than 10 points, two more. */
+export function needsExtraRuns(totals: readonly number[]): boolean {
+  return totals.length === 3 && Math.max(...totals) - Math.min(...totals) > 10;
 }
 
-/** Median of an odd number of readings. */
+export function runsComplete(totals: readonly number[]): boolean {
+  return totals.length === 5 || (totals.length === 3 && !needsExtraRuns(totals));
+}
+
+/** Median of an odd number of runs (3 or 5). */
 export function medianScore(totals: readonly number[]): number {
-  if (totals.length % 2 === 0 || totals.length === 0) throw new Error("median needs an odd number of readings");
+  if (totals.length % 2 === 0 || totals.length === 0) throw new Error("median needs an odd number of runs");
   const sorted = [...totals].sort((a, b) => a - b);
   return sorted[(sorted.length - 1) / 2]!;
 }
 
-/** The reading whose breakdown and reason are shown: the first whose total equals the median. */
+/** The run whose breakdown and rationale are published: the first whose total equals the median. */
 export function representativeRun(totals: readonly number[]): number {
   return totals.indexOf(medianScore(totals));
+}
+
+export interface FinalScoreInput {
+  type: SubmissionType;
+  /** Median of the runs; null when there is no on-time submission (missing or late). */
+  median: number | null;
+  /** PLAN only: was the deal fully signed by 03:00? */
+  dealSignedInTime?: boolean;
+  penalty?: number;
 }
 
 export interface FinalScore {
   final: number;
   missing: boolean;
+  /** PLAN without a deal signed in time: capped at 50. */
+  capped: boolean;
   penalty: number;
 }
 
-/** No saved submission → 0. Otherwise clamp(median − penalty, 0, 100). */
-export function finalScore(median: number | null, penalty = 0): FinalScore {
-  if (median === null) return { final: 0, missing: true, penalty: 0 };
-  return { final: clamp(median - penalty, 0, 100), missing: false, penalty };
+/** Late or missing → 0. Otherwise clamp(min(median, cap) − penalty, 0, 100). */
+export function finalScore(i: FinalScoreInput): FinalScore {
+  const penalty = i.penalty ?? 0;
+  if (i.median === null) return { final: 0, missing: true, capped: false, penalty: 0 };
+  const capped = i.type === "PLAN" && !i.dealSignedInTime;
+  let s = i.median;
+  if (capped) s = Math.min(s, RULES.PLAN_CAP_WITHOUT_DEAL);
+  return { final: clamp(s - penalty, 0, 100), missing: false, capped, penalty };
 }

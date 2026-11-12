@@ -2,20 +2,29 @@
 // parsers, so a mistake is reported with its row before anything is sent. The game functions check the decks again
 // (and refuse a deck that is locked). Pure apart from reading the uploaded file.
 
-import { bulletinFromCsv, crisisCardsFromCsv, parseCsv, problemCardsFromCsv, type CrisisCard, type PreparedBulletin, type ProblemCard } from "@msim/engine";
+import {
+  crisisCardsFromCsv,
+  flashBulletinFromCsv,
+  parseCsv,
+  problemCardsFromCsv,
+  type CrisisCard,
+  type FlashBulletin,
+  type ProblemCard,
+} from "@msim/engine";
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; message: string };
 
 /** The columns of each file: required ones first; optional ones may be left out. */
 export const CSV_FORMATS = {
   problem: { required: ["number", "title", "body"], optional: ["sector"], columns: ["number", "sector", "title", "body"] },
-  crisis: { required: ["number", "category", "title", "body"], optional: [], columns: ["number", "category", "title", "body"] },
-  twist: { required: ["title", "body"], optional: [], columns: ["title", "body"] },
+  crisis: { required: ["category", "title", "body"], optional: ["number"], columns: ["category", "number", "title", "body"] },
+  flash: { required: ["title", "body"], optional: [], columns: ["title", "body"] },
+  statements: { required: ["number", "title", "body"], optional: ["cap"], columns: ["number", "title", "body", "cap"] },
 } as const;
 export type CsvKind = keyof typeof CSV_FORMATS;
 
-/** The database's limits on card and bulletin text (upload_problem_deck, upload_crisis_deck, set_twist). */
-export const LIMITS = { number: 999, crisisNumber: 99, sector: 100, category: 100, title: 200, bulletinTitle: 140, body: 4000 } as const;
+/** The database's limits on card and bulletin text (upload_problem_deck, upload_crisis_deck, prepare_flash_bulletin). */
+export const LIMITS = { number: 999, sector: 100, category: 100, title: 200, flashTitle: 140, body: 4000 } as const;
 
 export const MAX_CSV_BYTES = 512 * 1024;
 
@@ -58,7 +67,7 @@ export function checkHeader(text: string, kind: CsvKind): string | null {
   if (dup) return `The column “${dup}” appears twice. ${expected(kind)}`;
   const missing = CSV_FORMATS[kind].required.filter((c) => !keys.includes(c));
   if (missing.length) return `Missing column${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}. ${expected(kind)}`;
-  if (rows.length < 2) return `The file has a header row but no ${kind === "twist" ? "twist" : "cards"}.`;
+  if (rows.length < 2) return `The file has a header row but no ${kind === "flash" ? "bulletin" : kind === "statements" ? "statements" : "cards"}.`;
   return null;
 }
 
@@ -97,51 +106,84 @@ export function parseCrisisDeck(text: string): Parsed<CrisisCard[]> {
   } catch (err) {
     return { ok: false, message: message(err) };
   }
+  const seen = new Map<string, number>();
   for (const [i, c] of cards.entries()) {
-    const row = `Row ${i + 2} (card ${c.number})`;
-    if (c.number > LIMITS.crisisNumber) return { ok: false, message: `${row}: the number must be from 1 to ${LIMITS.crisisNumber}.` };
-    if (tooLong(c.category, LIMITS.category)) return { ok: false, message: `${row}: the type is longer than ${LIMITS.category} characters.` };
+    const row = `Row ${i + 2}`;
+    if (!Number.isInteger(c.number) || c.number < 1 || c.number > LIMITS.number) {
+      return { ok: false, message: `${row}: the number must be a whole number from 1 to ${LIMITS.number} (or left empty for 1).` };
+    }
+    if (tooLong(c.category, LIMITS.category)) return { ok: false, message: `${row}: the category is longer than ${LIMITS.category} characters.` };
     if (tooLong(c.title, LIMITS.title)) return { ok: false, message: `${row}: the title is longer than ${LIMITS.title} characters.` };
     if (tooLong(c.body, LIMITS.body)) return { ok: false, message: `${row}: the body is longer than ${LIMITS.body} characters.` };
+    const key = `${c.category}\u0000${c.number}`;
+    const first = seen.get(key);
+    if (first !== undefined) return { ok: false, message: `${row}: “${c.category} #${c.number}” is already on row ${first}; each category and number pair must be unique.` };
+    seen.set(key, i + 2);
   }
   return { ok: true, value: cards };
 }
 
-export function parseTwist(text: string): Parsed<PreparedBulletin> {
-  const header = checkHeader(text, "twist");
+export function parseFlashBulletin(text: string): Parsed<FlashBulletin> {
+  const header = checkHeader(text, "flash");
   if (header) return { ok: false, message: header };
-  let twist: PreparedBulletin;
+  let bulletin: FlashBulletin;
   try {
-    twist = bulletinFromCsv(text, "twist");
+    bulletin = flashBulletinFromCsv(text);
   } catch (err) {
     return { ok: false, message: message(err) };
   }
-  if (tooLong(twist.body, LIMITS.body)) return { ok: false, message: `The body is longer than ${LIMITS.body} characters.` };
-  return { ok: true, value: twist };
+  if (tooLong(bulletin.body, LIMITS.body)) return { ok: false, message: `The body is longer than ${LIMITS.body} characters.` };
+  return { ok: true, value: bulletin };
 }
 
-/** Checks the twist typed into the form (title 1–140 characters, body up to 4,000). */
-export function checkTwist(title: string, body: string): Parsed<PreparedBulletin> {
-  const t = title.trim();
-  const b = body.trim();
-  if (!t) return { ok: false, message: "Give the twist a title." };
-  if (tooLong(t, LIMITS.bulletinTitle)) return { ok: false, message: `The title is at most ${LIMITS.bulletinTitle} characters.` };
-  if (!b) return { ok: false, message: "Write what the twist says." };
-  if (tooLong(b, LIMITS.body)) return { ok: false, message: `The body is at most ${LIMITS.body} characters.` };
-  return { ok: true, value: { title: t, body: b } };
+/** A PRIMUS Round 3 problem statement; `cap` is how many companies may pick it (5 by default). */
+export interface ProblemStatement {
+  number: number;
+  title: string;
+  body: string;
+  cap: number;
+}
+
+export function parseStatements(text: string): Parsed<ProblemStatement[]> {
+  const header = checkHeader(text, "statements");
+  if (header) return { ok: false, message: header };
+  const [head, ...rows] = parseCsv(text);
+  const col = (name: string) => head!.findIndex((h) => h.trim().toLowerCase() === name);
+  const [iNum, iTitle, iBody, iCap] = ["number", "title", "body", "cap"].map(col);
+  const out: ProblemStatement[] = [];
+  const seen = new Set<number>();
+  for (const [i, r] of rows.entries()) {
+    if (r.every((c) => c.trim() === "")) continue;
+    const row = `Row ${i + 2}`;
+    const number = Number(r[iNum!]?.trim());
+    const title = (r[iTitle!] ?? "").trim();
+    const body = (r[iBody!] ?? "").trim();
+    const capText = iCap! >= 0 ? (r[iCap!] ?? "").trim() : "";
+    const cap = capText === "" ? 5 : Number(capText);
+    if (!Number.isInteger(number) || number < 1 || number > 99) return { ok: false, message: `${row}: the number must be a whole number from 1 to 99.` };
+    if (seen.has(number)) return { ok: false, message: `${row}: statement ${number} appears twice.` };
+    if (!title || tooLong(title, 140)) return { ok: false, message: `${row}: the title must be 1 to 140 characters.` };
+    if (!body || tooLong(body, LIMITS.body)) return { ok: false, message: `${row}: the body must be 1 to ${LIMITS.body} characters.` };
+    if (!Number.isInteger(cap) || cap < 1 || cap > 50) return { ok: false, message: `${row}: the cap must be a whole number from 1 to 50 (or empty for 5).` };
+    seen.add(number);
+    out.push({ number, title, body, cap });
+  }
+  if (out.length === 0) return { ok: false, message: "The file has no statements." };
+  return { ok: true, value: out };
 }
 
 /**
  * Why each piece of content can no longer be replaced (null: it can). Both decks lock at the draw: from then on
- * organisers know the seed, and with it which crisis card each company would get. The twist locks when published.
+ * organisers know the seed, and with it which crisis category each squad would get.
  */
-export function contentLocks(state: { drawnAt: string | null; twistPublishedAt: string | null }) {
+export function contentLocks(state: { drawnAt: string | null; flashPublishedAt: string | null }) {
   return {
     problem: state.drawnAt ? "Locked: the problem deck is fixed once the lottery has been drawn." : null,
     crisis: state.drawnAt ? "Locked: the crisis deck is fixed once the lottery has been drawn." : null,
-    twist: state.twistPublishedAt ? "Locked: the twist has been published." : null,
+    flash: state.flashPublishedAt ? "Locked: the flash bulletin has been published." : null,
   };
 }
 
-/** The deck size the draw needs: each card goes to at most 3 teams. */
-export const minProblemCards = (teams: number) => Math.ceil(teams / 3);
+/** The deck size the draw needs for 3 cards per squad: two more cards than there are squads (one squad per Product
+ * team). A deck of exactly one card is also accepted: every squad then plays that same case. */
+export const minProblemCards = (productTeams: number) => productTeams + 2;
