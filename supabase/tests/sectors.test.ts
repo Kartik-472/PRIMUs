@@ -135,9 +135,9 @@ describe("three sectors", () => {
     await n.org("run_lottery", n.eventId, SEED, "3");
     expect(await n.q(
       `select pc.sector, count(*)::int as squads from squads s join problem_cards pc on pc.id = s.chosen_card_id
-        where s.event_id = $1 group by 1 order by 1`, [n.eventId],
+        where s.event_id = $1 group by 1 order by pc.sector collate "C"`, [n.eventId],
     )).toEqual(["Aviation", "Energy", "FMCG", "Fintech", "Luxury"].map((sector) => ({ sector, squads: 2 })));
-    expect(await n.q("select sector, count(*)::int as cards from crisis_cards where event_id = $1 group by 1 order by 1", [n.eventId]))
+    expect(await n.q("select sector, count(*)::int as cards from crisis_cards where event_id = $1 group by 1 order by sector collate \"C\"", [n.eventId]))
       .toEqual(["Aviation", "Energy", "FMCG", "Fintech", "Luxury"].map((sector) => ({ sector, cards: 4 })));
     // All fifty Round 3 statements are accepted: every sector has room for its companies.
     const statements = parseStatements(lib.statements);
