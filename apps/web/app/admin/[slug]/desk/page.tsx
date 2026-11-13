@@ -1,0 +1,139 @@
+import type { Metadata } from "next";
+import { TRACKS, TRACK_LABELS, type Track } from "@msim/engine";
+import { currentViewer } from "@/lib/auth/viewer";
+import { loadAdminEvent } from "@/lib/admin/event";
+import { MAX_LIST_BYTES } from "@/lib/admin/team-list";
+import { supabaseServer } from "@/lib/supabase/server";
+import { Notice, Panel, Stat, inputClass } from "@/components/ui/ui";
+import { ActionButton, ActionForm } from "@/components/ui/action";
+import { Desk, type ListTeam } from "./desk";
+import { importTeamList, setDeskRule } from "./actions";
+
+export const metadata: Metadata = { title: "Registration desk" };
+
+interface TeamRow {
+  id: string;
+  code: string;
+  track: Track;
+  checked_in_at: string | null;
+}
+
+interface RosterRow {
+  id: string;
+  number: number;
+  team_name: string;
+  track: Track | null;
+  college: string | null;
+  email: string | null;
+  phone: string | null;
+  members: { full_name: string; roll_number: string | null }[];
+  extra: Record<string, string>;
+  team_id: string | null;
+}
+
+// The registration desk on the night. The organisers' team list is uploaded here before the night. Every team's login
+// card is printed in advance, but it signs in only after the desk admits that team: find it in the list (or start a
+// walk-in), correct its details, press Admit, and hand over the card the page names.
+export default async function DeskPage({ params }: PageProps<"/admin/[slug]/desk">) {
+  const { slug } = await params;
+  const [viewer, event] = await Promise.all([currentViewer(), loadAdminEvent(slug)]);
+  const organiser = viewer!.role === "ORGANISER";
+  const sb = await supabaseServer();
+  const [teams, roster, rule] = await Promise.all([
+    sb.from("teams").select("id, code, track, checked_in_at").eq("event_id", event.id).order("code").limit(1000),
+    sb.from("roster").select("id, number, team_name, track, college, email, phone, members, extra, team_id").eq("event_id", event.id).order("number").limit(3000),
+    sb.from("events").select("desk_check_in").eq("id", event.id).maybeSingle<{ desk_check_in: boolean }>(),
+  ]);
+  if (teams.error || roster.error || rule.error) {
+    return (
+      <Notice tone="amber">
+        The database does not have the registration desk yet: run the latest SQL update (migration 048), then reload this page.
+      </Notice>
+    );
+  }
+  const cards = (teams.data ?? []) as TeamRow[];
+  const byId = new Map(cards.map((t) => [t.id, t]));
+  const on = rule.data?.desk_check_in ?? false;
+  const list: ListTeam[] = ((roster.data ?? []) as RosterRow[]).map((r) => ({
+    id: r.id,
+    number: r.number,
+    name: r.team_name,
+    track: r.track,
+    college: r.college ?? "",
+    email: r.email ?? "",
+    phone: r.phone ?? "",
+    members: r.members ?? [],
+    extra: r.extra ?? {},
+    teamId: r.team_id,
+    card: r.team_id ? (byId.get(r.team_id)?.code ?? null) : null,
+  }));
+  const count = (track: Track) => {
+    const all = cards.filter((t) => t.track === track);
+    return { total: all.length, done: all.filter((t) => t.checked_in_at).length };
+  };
+  const admitted = cards.filter((t) => t.checked_in_at).length;
+  const open = !event.drawn_at;
+
+  return (
+    <div className="space-y-6">
+      <Panel
+        title="Registration desk"
+        actions={
+          organiser ? (
+            <ActionButton
+              action={setDeskRule.bind(null, event.id, !on)}
+              confirm={on ? "Click again: let every team sign in without the desk" : "Click again: require the desk's check-in"}
+            >
+              {on ? "Turn off desk check-in" : "Require desk check-in"}
+            </ActionButton>
+          ) : null
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Stat label="Admitted" value={`${admitted} / ${cards.length}`} hint={`${list.length} teams in the list`} />
+          {TRACKS.map((track) => {
+            const c = count(track);
+            return <Stat key={track} label={TRACK_LABELS[track]} value={`${c.done} / ${c.total}`} hint={`${c.total - c.done} cards left`} />;
+          })}
+        </div>
+        <div className="mt-4 space-y-2">
+          {on ? (
+            <Notice tone="blue">
+              A team&apos;s login works only after it is admitted here. Find the team in the list below (or start a walk-in team), check and correct
+              its details, and press <b>Admit</b>: the page tells you which login card to hand over.
+            </Notice>
+          ) : (
+            <Notice tone="amber">
+              Desk check-in is <b>off</b> for this event: every team can sign in with its card, admitted or not. Turn it on to make logins wait for
+              the desk.
+            </Notice>
+          )}
+          {!open ? <Notice>The squads have been drawn: teams can still be edited, but no longer checked out.</Notice> : null}
+          {open && on && admitted < cards.length ? (
+            <Notice>
+              Cards not admitted by the draw still take part in it as empty seats: admit every team before the lottery.
+            </Notice>
+          ) : null}
+        </div>
+      </Panel>
+
+      {organiser ? (
+        <Panel title="Upload team list">
+          <ActionForm action={importTeamList.bind(null, event.id)} submit="Upload" maxFileBytes={MAX_LIST_BYTES} className="space-y-3" resetOnSuccess>
+            <p className="text-sm">
+              An Excel (.xlsx) or .csv file, first row the header. Columns are found by their names: <b>Team name</b> (required), <b>Track</b>,{" "}
+              <b>College</b>, <b>Email</b>, <b>Phone</b>, and each member&apos;s <b>name</b> with an optional <b>Roll no.</b> column after it
+              (leader first). Other columns are kept and shown at the desk.
+            </p>
+            <input type="file" name="file" accept=".xlsx,.csv" required className={inputClass} data-testid="list-file" />
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="replace" /> Replace the teams not admitted yet (otherwise the file is added to the list)
+            </label>
+          </ActionForm>
+        </Panel>
+      ) : null}
+
+      <Desk eventId={event.id} list={list} editable={organiser} canCheckOut={organiser && open} />
+    </div>
+  );
+}

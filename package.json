@@ -19,7 +19,8 @@
     "new-seed": "tsx scripts/new-seed.ts",
     "rehearse": "tsx --env-file-if-exists=.env scripts/rehearse.ts",
     "load-test": "tsx --env-file-if-exists=.env scripts/load-test.ts",
-    "demo-sql": "tsx scripts/demo-sql.ts"
+    "demo-sql": "tsx scripts/demo-sql.ts",
+    "event-sql": "tsx scripts/event-sql.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
