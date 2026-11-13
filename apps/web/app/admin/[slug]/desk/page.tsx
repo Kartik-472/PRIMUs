@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { TRACKS, TRACK_LABELS, type Track } from "@msim/engine";
 import { currentViewer } from "@/lib/auth/viewer";
 import { loadAdminEvent } from "@/lib/admin/event";
@@ -7,7 +8,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { Notice, Panel, Stat, inputClass } from "@/components/ui/ui";
 import { ActionButton, ActionForm } from "@/components/ui/action";
 import { Desk, type ListTeam } from "./desk";
-import { importTeamList, setDeskRule } from "./actions";
+import { importTeamList, setDeskRule, setRegistration } from "./actions";
 
 export const metadata: Metadata = { title: "Registration desk" };
 
@@ -28,6 +29,7 @@ interface RosterRow {
   phone: string | null;
   members: { full_name: string; roll_number: string | null }[];
   extra: Record<string, string>;
+  source: "UPLOAD" | "ONLINE" | "DESK";
   team_id: string | null;
 }
 
@@ -39,10 +41,13 @@ export default async function DeskPage({ params }: PageProps<"/admin/[slug]/desk
   const [viewer, event] = await Promise.all([currentViewer(), loadAdminEvent(slug)]);
   const organiser = viewer!.role === "ORGANISER";
   const sb = await supabaseServer();
-  const [teams, roster, rule] = await Promise.all([
+  const host = (await headers()).get("host") ?? "primus.mrdev4u.com";
+  const registerUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}/register`;
+  const [teams, roster, rule, reg] = await Promise.all([
     sb.from("teams").select("id, code, track, checked_in_at").eq("event_id", event.id).order("code").limit(1000),
-    sb.from("roster").select("id, number, team_name, track, college, email, phone, members, extra, team_id").eq("event_id", event.id).order("number").limit(3000),
+    sb.from("roster").select("id, number, team_name, track, college, email, phone, members, extra, source, team_id").eq("event_id", event.id).order("number").limit(3000),
     sb.from("events").select("desk_check_in").eq("id", event.id).maybeSingle<{ desk_check_in: boolean }>(),
+    sb.from("events").select("registration_open").eq("id", event.id).maybeSingle<{ registration_open: boolean }>(),
   ]);
   if (teams.error || roster.error || rule.error) {
     return (
@@ -64,6 +69,7 @@ export default async function DeskPage({ params }: PageProps<"/admin/[slug]/desk
     phone: r.phone ?? "",
     members: r.members ?? [],
     extra: r.extra ?? {},
+    source: r.source ?? "UPLOAD",
     teamId: r.team_id,
     card: r.team_id ? (byId.get(r.team_id)?.code ?? null) : null,
   }));
@@ -73,6 +79,10 @@ export default async function DeskPage({ params }: PageProps<"/admin/[slug]/desk
   };
   const admitted = cards.filter((t) => t.checked_in_at).length;
   const open = !event.drawn_at;
+  // Online registration needs migration 049; without it the panel says so instead of breaking the page.
+  const regReady = !reg.error;
+  const regOpen = reg.data?.registration_open ?? false;
+  const online = list.filter((t) => t.source === "ONLINE").length;
 
   return (
     <div className="space-y-6">
@@ -115,6 +125,34 @@ export default async function DeskPage({ params }: PageProps<"/admin/[slug]/desk
             </Notice>
           ) : null}
         </div>
+      </Panel>
+
+      <Panel
+        title="Online registration"
+        actions={
+          organiser && regReady ? (
+            <ActionButton
+              action={setRegistration.bind(null, event.id, !regOpen)}
+              confirm={regOpen ? "Click again: close the online form" : "Click again: open the online form"}
+            >
+              {regOpen ? "Close registration" : "Open registration"}
+            </ActionButton>
+          ) : null
+        }
+      >
+        {regReady ? (
+          <div className="space-y-2 text-sm">
+            <p>
+              {regOpen ? "Open" : "Closed"} · {online} teams registered online. Share this link: <b className="font-mono">{registerUrl}</b>
+            </p>
+            <p className="text-muted">
+              Each team gets a serial number when it registers, and keeps it as its team ID. Online sign-ups appear in the list below (show{" "}
+              <b>Registered online</b>): open one to edit it, choose its track and <b>Save details only</b>, or admit it on the night.
+            </p>
+          </div>
+        ) : (
+          <Notice tone="amber">Online registration needs the latest SQL update (migration 049).</Notice>
+        )}
       </Panel>
 
       {organiser ? (

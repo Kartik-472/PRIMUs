@@ -62,3 +62,19 @@ export async function setDeskRule(eventId: string, on: boolean): Promise<ActionR
     ? { ...r, message: on ? "Teams now need the desk's check-in before they can sign in." : "Every team can sign in without the desk." }
     : r;
 }
+
+export async function saveTeam(input: { rosterId: string; track: Track; name: string; members: DeskMember[]; details: DeskDetails }): Promise<ActionResult> {
+  const r = await rpc("update_roster", {
+    p_roster: input.rosterId,
+    p_name: input.name,
+    p_track: input.track,
+    p_members: input.members,
+    p_details: input.details,
+  });
+  return r.ok ? { ...r, message: `Saved team #${String(r.data?.number ?? "")}. It is not admitted yet.` } : r;
+}
+
+export async function setRegistration(eventId: string, on: boolean): Promise<ActionResult> {
+  const r = await rpc("set_registration_open", { p_event: eventId, p_on: on });
+  return r.ok ? { ...r, message: on ? "Online registration is open." : "Online registration is closed." } : r;
+}

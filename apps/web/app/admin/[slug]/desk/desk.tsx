@@ -11,7 +11,7 @@ import type { ActionResult } from "@/lib/rpc";
 import { Badge, buttonClass, inputClass } from "@/components/ui/ui";
 import { ResultMessage } from "@/components/ui/result-message";
 import { safely } from "@/components/ui/action-helpers";
-import { admitTeam, checkOut, type DeskMember } from "./actions";
+import { admitTeam, checkOut, saveTeam, type DeskMember } from "./actions";
 
 export interface ListTeam {
   id: string;
@@ -23,6 +23,8 @@ export interface ListTeam {
   phone: string;
   members: DeskMember[];
   extra: Record<string, string>;
+  /** Where the team came from: the uploaded sheet, the online form, or a walk-in at the desk. */
+  source: "UPLOAD" | "ONLINE" | "DESK";
   /** The login card this team was admitted on, or null. */
   teamId: string | null;
   card: string | null;
@@ -70,7 +72,7 @@ export function Desk({ eventId, list, editable, canCheckOut }: { eventId: string
   const [handed, setHanded] = useState<string | null>(null);
   const [armed, setArmed] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [show, setShow] = useState<"all" | "waiting" | "admitted">("waiting");
+  const [show, setShow] = useState<"all" | "waiting" | "admitted" | "online">("waiting");
   const [pending, start] = useTransition();
 
   const run = (fn: () => Promise<ActionResult>, then?: (r: ActionResult) => void) =>
@@ -113,13 +115,32 @@ export function Desk({ eventId, list, editable, canCheckOut }: { eventId: string
       },
     );
   };
+  // Save a registered team's details (name, track, contacts, members) without admitting it yet.
+  const saveOnly = () => {
+    if (!draft?.rosterId) return;
+    const members = draft.members
+      .filter((m) => m.full_name.trim() !== "")
+      .map((m) => ({ full_name: m.full_name.trim(), roll_number: m.roll_number.trim() || null }));
+    setHanded(null);
+    run(
+      () =>
+        saveTeam({
+          rosterId: draft.rosterId!,
+          track: draft.track,
+          name: draft.name,
+          members,
+          details: { college: draft.college, email: draft.email, phone: draft.phone },
+        }),
+      () => setDraft(null),
+    );
+  };
   const setMember = (i: number, key: "full_name" | "roll_number", value: string) =>
     setDraft((d) => (d ? { ...d, members: d.members.map((m, j) => (j === i ? { ...m, [key]: value } : m)) } : d));
 
   const q = query.trim().toLowerCase();
   const shown = list.filter(
     (t) =>
-      (show === "all" || (show === "admitted") === (t.card !== null)) &&
+      (show === "all" || (show === "online" ? t.source === "ONLINE" : (show === "admitted") === (t.card !== null))) &&
       (q === "" ||
         [String(t.number), t.card ?? "", t.name, t.college, t.email, t.phone, ...t.members.map((m) => `${m.full_name} ${m.roll_number ?? ""}`)].some((s) =>
           s.toLowerCase().includes(q),
@@ -231,6 +252,11 @@ export function Desk({ eventId, list, editable, canCheckOut }: { eventId: string
             <button type="submit" className={buttonClass.primary} disabled={pending} data-testid="desk-submit">
               {pending ? "Saving…" : draft.card ? "Save changes" : "Admit and give a card"}
             </button>
+            {draft.rosterId && !draft.card ? (
+              <button type="button" className={buttonClass.secondary} onClick={saveOnly} disabled={pending} data-testid="desk-save-only">
+                Save details only
+              </button>
+            ) : null}
             <button type="button" className={buttonClass.secondary} onClick={() => setDraft(null)} disabled={pending}>
               Cancel
             </button>
@@ -247,6 +273,7 @@ export function Desk({ eventId, list, editable, canCheckOut }: { eventId: string
             <select value={show} onChange={(e) => setShow(e.target.value as typeof show)} className={`${inputClass} w-auto`} aria-label="Show">
               <option value="waiting">Not admitted yet</option>
               <option value="admitted">Admitted</option>
+              <option value="online">Registered online</option>
               <option value="all">All teams</option>
             </select>
             <input
@@ -279,7 +306,10 @@ export function Desk({ eventId, list, editable, canCheckOut }: { eventId: string
             <tbody>
               {shown.map((t) => (
                 <tr key={t.id} className="border-t border-phosphor-dim">
-                  <td className="px-3 py-2 font-mono">{t.number}</td>
+                  <td className="px-3 py-2 font-mono">
+                    {t.number}
+                    {t.source === "ONLINE" ? <span className="block text-xs text-muted">online</span> : null}
+                  </td>
                   <td className="px-3 py-2">
                     {t.name}
                     <span className="block text-xs text-muted">{[t.track ? TRACK_LABELS[t.track] : null, t.college || null, t.phone || null].filter(Boolean).join(" · ")}</span>
