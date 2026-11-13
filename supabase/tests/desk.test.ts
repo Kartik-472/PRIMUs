@@ -118,4 +118,48 @@ describe("registration desk", () => {
     const admittedCode = String(r.card);
     expect(await rowsAs(db.pool, n.team(admittedCode), "select id from roster")).toHaveLength(0);
   });
+  test("online registration gives each team the next serial number; the desk edits and admits it", async () => {
+    const n = await Night.create(db.pool, 3);
+    const slug = (await n.one("select slug from events where id = $1", [n.eventId])).slug as string;
+    const register = async (form: Record<string, unknown>) =>
+      (await n.one("select public.register_team($1, $2) as r", [slug, JSON.stringify(form)])).r;
+    const thapar = {
+      category: "THAPAR", team_name: " Alpha ", leader_email: "Asha@Thapar.edu", leader_phone: "98765 43210",
+      members: [{ full_name: "Asha", roll_number: "102" }, { full_name: "Bilal", roll_number: "103" }],
+    };
+    // Closed until the organiser opens it; only staff can open it.
+    expect(await register(thapar)).toMatchObject({ ok: false, code: "CLOSED" });
+    expect((await n.one("select public.registration_info($1) as r", [slug])).r).toMatchObject({ open: false });
+    await expect(n.call(n.fairness, "set_registration_open", n.eventId, true)).rejects.toThrow(/organiser/);
+    await n.org("set_registration_open", n.eventId, true);
+    expect((await n.one("select public.registration_info(null) as r")).r).toMatchObject({ slug, open: true, registered: 0 });
+
+    expect(await register(thapar)).toMatchObject({ ok: true, number: 1, team_name: "Alpha" });
+    expect(await register({ ...thapar, team_name: "Again" })).toMatchObject({ ok: false, code: "ALREADY", number: 1 });
+    expect(await register({ ...thapar, leader_email: "b@x.in", members: [{ full_name: "Solo", roll_number: "1" }] })).toMatchObject({ code: "BAD_MEMBERS" });
+    expect(await register({ ...thapar, leader_email: "b@x.in", members: [{ full_name: "A", roll_number: "1" }, { full_name: "B" }] })).toMatchObject({ code: "BAD_ROLL" });
+    expect(await register({ ...thapar, leader_email: "b@x.in", leader_phone: "12" })).toMatchObject({ code: "BAD_PHONE" });
+    expect(await register({ category: "OUTSIDE", team_name: "Beta", leader_email: "b@x.in", leader_phone: "9876543210", members: [{ full_name: "C" }, { full_name: "D" }] }))
+      .toMatchObject({ code: "BAD_COLLEGE" });
+    expect(await register({ category: "OUTSIDE", team_name: "Beta", college: "PEC", leader_email: "b@x.in", leader_phone: "9876543210", members: [{ full_name: "C" }, { full_name: "D" }, { full_name: "" }] }))
+      .toMatchObject({ ok: true, number: 2 });
+    const rows = await n.q("select id, number, team_name, college, email, track, source, members, extra from roster where event_id = $1 order by number", [n.eventId]);
+    expect(rows.map((r) => [r.number, r.team_name, r.college, r.email, r.source])).toEqual([
+      [1, "Alpha", "Thapar Institute", "asha@thapar.edu", "ONLINE"],
+      [2, "Beta", "PEC", "b@x.in", "ONLINE"],
+    ]);
+    expect(rows[1].members).toEqual([{ full_name: "C", roll_number: null }, { full_name: "D", roll_number: null }]);
+    expect(rows[0].extra.Category).toBe("Thapar student");
+
+    // The desk edits a registered team (track from the dropdown) before admitting it, then admits it by number.
+    await n.org("update_roster", rows[1].id, "Beta Squad", "FINANCE", JSON.stringify([{ full_name: "C" }, { full_name: "D" }, { full_name: "E" }]), JSON.stringify({ phone: "9000000000" }));
+    expect(await n.one("select team_name, track, phone, jsonb_array_length(members) as m from roster where id = $1", [rows[1].id]))
+      .toEqual({ team_name: "Beta Squad", track: "FINANCE", phone: "9000000000", m: 3 });
+    await expect(n.call(n.fairness, "update_roster", rows[1].id, "X", null, "[]")).rejects.toThrow(/organiser/);
+    await n.org("desk_check_in", n.eventId, "FINANCE", null, "Beta Squad", JSON.stringify([{ full_name: "C" }]), rows[1].id);
+    expect(await n.call(n.lead, "update_roster", rows[1].id, "Y", "FINANCE", JSON.stringify([{ full_name: "C" }]))).toMatchObject({ ok: false, code: "ADMITTED" });
+
+    await n.org("set_registration_open", n.eventId, false);
+    expect(await register({ ...thapar, leader_email: "z@x.in" })).toMatchObject({ code: "CLOSED" });
+  });
 });

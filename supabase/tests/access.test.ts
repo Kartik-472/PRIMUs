@@ -68,8 +68,8 @@ describe("grants", () => {
       "publish_flash_bulletin", "rankings", "rate_firm", "release_scores", "request_correction", "rerun_judging",
       "respond_offer", "resume_event", "retry_failed_runs", "run_lottery", "save_draft", "save_draft_for",
       "save_firm_profile", "seal_missing_scores", "server_time", "set_auto_advance", "set_desk_check_in", "set_judge_model",
-      "set_problem_statements", "set_seed_commitment", "sign_deal", "start_calibration", "start_judging",
-      "submit_for", "submit_submission", "team_badge_facts", "team_plan_facts", "tick", "upload_crisis_deck",
+      "set_problem_statements", "set_registration_open", "set_seed_commitment", "sign_deal", "start_calibration", "start_judging",
+      "submit_for", "submit_submission", "team_badge_facts", "team_plan_facts", "tick", "update_roster", "upload_crisis_deck",
       "upload_problem_deck",
     ]);
     for (const r of rows) {
