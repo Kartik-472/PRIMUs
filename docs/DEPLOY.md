@@ -175,15 +175,45 @@ Use a separate rehearsal event, preferably a separate Supabase project/deploymen
 live event. The existing seed supports fake X-prefixed teams and a 10× clock:
 
 ```bash
-pnpm seed --slug rehearsal --rehearsal --starts-at 2026-11-13T15:00:00+05:30 --staff seed/staff.csv
+# A PRIMUS night with the three sectors, 20× faster (about 50 minutes, the Round 3 draft runs in real seconds):
+pnpm seed --slug rehearsal --rehearsal --starts-at 2026-11-13T15:00:00+05:30 --staff seed/staff.csv \
+  --format PRIMUS --speed 20 --problems seed/sectors/problem-cards.csv --crises seed/sectors/crisis-cards.csv
 ```
 
 Use a future rehearsal start time. `--replace` is destructive and only for an intentionally discarded rehearsal
 or SETUP event. On the rehearsal deployment set `JUDGE_FAKE=1`, redeploy and confirm the FAKE JUDGE badge. Run
 through login, lottery, submissions, order entry, score release, pause/resume and exports. Then let the bots play the night:
 `JUDGE_FAKE=1 pnpm rehearse --slug rehearsal --autopilot`, and during a trading phase run
-`pnpm load-test --slug rehearsal --connections 500` against the hosted staging project (README, "Rehearse with
+`pnpm load-test --slug rehearsal --connections 600` against the hosted staging project (README, "Rehearse with
 bots and load-test"). A few manual browsers do not validate 600-phone capacity; the load test does.
+
+In a PRIMUS rehearsal the bots play every track: firms fill in their profile, write the Round 1 memo and answer
+offers; companies hire a firm, write each crisis plan, rate their firm and pick a statement in the draft; funds bid
+and trade. The autopilot uploads the Round 3 statements (ten per sector) and judges and releases each crisis plan,
+advice memo and the solution at the right moment.
+
+**The connection cap.** The load test's first sign of trouble is "N of 600 screens joined" with `CHANNEL_ERROR:
+transport failure` for the rest: the project's Realtime limit on concurrent clients is lower than the screens in the
+room. A local stack (and Supabase's free plan) allows 200; `scripts/local-load-limits.sh` raises the local limits
+before a local load test. On the hosted project, check the plan's Realtime limits (step 8 of section 2) and raise them
+before the night: every screen that cannot connect stops updating by itself.
+
+**The message limit.** The second sign is a report where few or none of the screens "heard" the clearing, with
+`UnableToBroadcastChanges: too_many_requests` or `MessagePerSecondRateLimitReached` in the Realtime logs. Realtime
+counts a message once for every screen that receives it, against the project's messages-per-second limit averaged
+over the last minute, and while that average is over the limit it drops broadcasts for everyone. In the PRIMUS
+rehearsal with 600 screens, a round change costs about 1,800 deliveries (three messages × 600 screens), about 30 a
+second averaged over the minute. Hiring offers go only to the two teams concerned (each team screen also joins its
+own team channel), so a busy hiring minute adds little. Check the plan's messages per second as well as its
+concurrent clients. A local stack allows 100 messages a second: `scripts/local-load-limits.sh` raises that too, and
+restarts Realtime's rate counters, which otherwise keep the limit they started with.
+
+In November 2026 Supabase's [Realtime limits](https://supabase.com/docs/guides/realtime/limits) page lists, per
+project: Free 200 concurrent connections and 100 messages a second; Pro 500 and 500; Pro without the spend cap and
+Team 10,000 and 2,500 (channel joins per second match the messages). It counts a message each time one is "delivered
+to, or sent from a client", as above. A 600-screen night therefore needs **Pro with the spend cap off, or Team**:
+on Pro with the cap on, a hundred screens cannot connect. Each team screen joins three channels (the event, its team
+and its squad chat), so a venue-wide reconnect of 600 screens is about 1,800 joins.
 
 Then unset `JUDGE_FAKE`, redeploy and run a real calibration batch under `/admin/<slug>/judge/calibration`.
 Use two organiser consoles and check every median against the expected band; record model, prompt hashes, timing,
