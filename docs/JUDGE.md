@@ -128,6 +128,7 @@ control panel shows a FAKE JUDGE badge while it is on.
 | `JUDGE_WORK_BUDGET_MS` | `50000` | how long one `/api/judge/work` call keeps claiming |
 | `JUDGE_FAKE` / `JUDGE_FAKE_LATENCY_MS` | unset / `300` | fake judge |
 | `SUPABASE_SERVICE_ROLE_KEY` | | the worker claims and reports runs as the service role |
+| `NEWS_MODEL` | `claude-opus-5-5` | Bulletins → "Draft with AI" (news drafts, not judging); same API key |
 
 ## Calibration and published prompts
 
@@ -170,3 +171,11 @@ Runtime prompt loaders use supported Turbopack annotations together with explici
 worker/team/calibration manifests contain all required prompts/samples and no unrelated app source files; this
 avoids bundling hundreds of source and test files. Verify deployed artifacts too, as described in DEPLOY.md.
 Real Anthropic calibration is unrun because no API credential was available; fake results cannot replace it.
+
+## AI news drafts (not judging)
+
+Control panel → Bulletins → **Draft with AI** asks Claude (`NEWS_MODEL`, effort low, structured JSON) for a news
+bulletin written from the market as it stands: the 30 biggest movers since their opening price, their sectors, the
+phase and the last 8 headlines. The draft fills the composer; the organiser edits and publishes it as usual, so nothing
+reaches teams unread. Prices never come from the model. Unlike the judge, a declined draft is re-run on the API's
+default fallback model (`fallbacks: "default"`), since a draft has no fairness stake.

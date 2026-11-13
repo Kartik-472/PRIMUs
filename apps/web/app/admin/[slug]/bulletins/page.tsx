@@ -19,6 +19,7 @@ import { Badge, Notice, Panel, inputClass, type Tone } from "@/components/ui/ui"
 import { ActionButton, ConfirmForm } from "@/components/ui/action";
 import { Countdown } from "@/components/ui/countdown";
 import { publishBulletin, publishFlashBulletin } from "./actions";
+import { AiDraft } from "./ai-draft";
 
 export const metadata: Metadata = { title: "Bulletins" };
 
@@ -53,6 +54,7 @@ export default async function BulletinsPage({ params }: { params: Promise<{ slug
               className="grid gap-3"
               resetOnSuccess
             >
+              <AiDraft eventId={event.id} />
               <label className="block max-w-xs">
                 <span className="text-xs font-medium text-paper">Kind</span>
                 <select name="kind" defaultValue="GENERAL" className={inputClass}>
