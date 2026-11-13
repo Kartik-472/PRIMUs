@@ -10,7 +10,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { eventStartIST } from "@msim/engine";
 import { parseArgs } from "./lib/args";
-import { buildSeedPlan, crisisCardsFromCsv, problemCardsFromCsv, toSeedPayload } from "./lib/seed-plan";
+import { buildSeedPlan, crisisCardsFromCsv, problemCardsFromCsv } from "./lib/seed-plan";
+import { eventSql } from "./lib/event-sql";
 
 const args = parseArgs(process.argv.slice(2));
 const domain = String(args.domain ?? "teams.example.org").toLowerCase();
@@ -37,43 +38,11 @@ const plan = buildSeedPlan({
   crisisCards: crisisCardsFromCsv(read("seed/crisis-cards.csv")),
 });
 
-const logins = [
-  ...plan.teams.map((t) => ({ email: t.email, password: t.password, role: "TEAM", label: `${t.code} (${t.track})` })),
-  ...plan.staff.map((s) => ({ email: s.email, password: s.password, role: s.role, label: s.role })),
-].map((l) => ({ ...l, id: randomUUID() }));
-const payload = toSeedPayload(plan, new Map(logins.map((l) => [l.email, l.id])));
-
-const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
-const json = (v: unknown) => `${q(JSON.stringify(v))}::jsonb`;
-
-const sql = `-- PRIMUS demo event (${slug}). Paste into the Supabase SQL editor and run, after the migrations.
--- Team logins use the domain ${domain}: it must equal NEXT_PUBLIC_TEAM_EMAIL_DOMAIN on Vercel.
-begin;
-
-with l(id, email, password, role) as (
-  select (x ->> 'id')::uuid, x ->> 'email', x ->> 'password', x ->> 'role'
-    from jsonb_array_elements(${json(logins.map(({ id, email, password, role }) => ({ id, email, password, role })))}) x
-), u as (
-  insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-                          raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
-                          confirmation_token, email_change, email_change_token_new, recovery_token)
-  select '00000000-0000-0000-0000-000000000000', id, 'authenticated', 'authenticated', email,
-         extensions.crypt(password, extensions.gen_salt('bf')), now(),
-         jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email'), 'msim_role', role), '{}'::jsonb,
-         now(), now(), '', '', '', ''
-    from l
-  returning id, email
-)
-insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
-select gen_random_uuid(), id, id::text, jsonb_build_object('sub', id::text, 'email', email, 'email_verified', true), 'email', now(), now(), now()
-  from u;
-
-select public.seed_event(${json(payload)});
-
-commit;
-
-select count(*) as teams from public.teams t join public.events e on e.id = t.event_id where e.slug = ${q(slug)};
-`;
+const { sql, logins } = eventSql(
+  plan,
+  `-- PRIMUS demo event (${slug}). Paste into the Supabase SQL editor and run, after the migrations.
+-- Team logins use the domain ${domain}: it must equal NEXT_PUBLIC_TEAM_EMAIL_DOMAIN on Vercel.`,
+);
 
 const cleanup = `-- Remove the demo event and its logins (Supabase SQL editor):
 begin;
