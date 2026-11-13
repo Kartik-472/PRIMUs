@@ -1,0 +1,64 @@
+"use server";
+
+// The registration desk: upload the team list, admit a team onto a login card (its login starts working), save changes
+// to it, or check it out again. Each is one game function run as the signed-in organiser.
+
+import type { Track } from "@msim/engine";
+import { rpc, type ActionResult } from "@/lib/rpc";
+import { readTeamList } from "@/lib/admin/team-list";
+
+export interface DeskMember {
+  full_name: string;
+  roll_number: string | null;
+}
+
+export interface DeskDetails {
+  college: string;
+  email: string;
+  phone: string;
+}
+
+export async function importTeamList(eventId: string, _prev: ActionResult | null, form: FormData): Promise<ActionResult> {
+  const list = await readTeamList(form.get("file"));
+  if (!list.ok) return { ok: false, code: "BAD_LIST", message: list.message };
+  const r = await rpc("import_roster", { p_event: eventId, p_rows: list.rows, p_replace: form.get("replace") === "on" });
+  if (!r.ok) return r;
+  const skipped = list.skipped ? ` ${list.skipped} rows without a team name were skipped.` : "";
+  return { ...r, message: `Added ${String(r.data?.added ?? 0)} teams to the list (${String(r.data?.total ?? 0)} in all).${skipped}` };
+}
+
+export async function admitTeam(
+  eventId: string,
+  input: { rosterId: string | null; track: Track; code: string | null; edit: boolean; name: string; members: DeskMember[]; details: DeskDetails },
+): Promise<ActionResult> {
+  const r = await rpc("desk_check_in", {
+    p_event: eventId,
+    p_track: input.track,
+    p_code: input.code,
+    p_name: input.name,
+    p_members: input.members,
+    p_roster: input.rosterId,
+    p_edit: input.edit,
+    p_details: input.details,
+  });
+  if (!r.ok) return r;
+  const card = String(r.data?.card ?? "");
+  return {
+    ...r,
+    message: r.data?.new
+      ? `Admitted on card ${card}: hand them that card, their login works now. ${String(r.data?.checked_in ?? "")} teams admitted.`
+      : `Saved ${card}.`,
+  };
+}
+
+export async function checkOut(eventId: string, teamId: string): Promise<ActionResult> {
+  const r = await rpc("desk_check_out", { p_event: eventId, p_team: teamId });
+  return r.ok ? { ...r, message: `Checked out: card ${String(r.data?.card ?? "")} no longer signs in and is free again.` } : r;
+}
+
+export async function setDeskRule(eventId: string, on: boolean): Promise<ActionResult> {
+  const r = await rpc("set_desk_check_in", { p_event: eventId, p_on: on });
+  return r.ok
+    ? { ...r, message: on ? "Teams now need the desk's check-in before they can sign in." : "Every team can sign in without the desk." }
+    : r;
+}

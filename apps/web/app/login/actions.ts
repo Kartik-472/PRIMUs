@@ -49,6 +49,16 @@ export async function signIn(_prev: LoginState, form: FormData): Promise<LoginSt
     };
   }
 
+  // A live event's team login works only once the registration desk has checked the team in.
+  const { data: desk } = await sb.rpc("my_desk_status");
+  if (desk && (desk as { team?: boolean; admitted?: boolean }).team && !(desk as { admitted?: boolean }).admitted) {
+    await sb.auth.signOut();
+    return {
+      login,
+      error: "Your team is not checked in yet. Go to the registration desk with your card: your login works as soon as they check your team in.",
+    };
+  }
+
   const viewer = await getViewer(sb);
   if (!viewer) {
     await sb.auth.signOut();

@@ -30,6 +30,8 @@ export async function getViewer(client?: SupabaseClient): Promise<Viewer | null>
     .eq("user_id", userId)
     .maybeSingle<AccountRow>();
   if (!data) return null;
+  // A team the registration desk has not checked in cannot read its own team row: it is not signed in to the game.
+  if (data.role === "TEAM" && !data.teams) return null;
   return {
     userId,
     role: data.role,
