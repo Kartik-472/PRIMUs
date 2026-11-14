@@ -767,5 +767,10 @@ describe("PRIMUS judging", () => {
     expect(judgeTypesFor("PRIMUS")).not.toContain("PLAN");
     expect(defaultJudgeType("PRESSURE")).toBe("CRISIS_1");
     expect(defaultJudgeType("SATURATION")).toBe("SOLUTION");
+    // A PRIMUS night after Round 3 opens on the solutions, never a classic type it does not judge.
+    for (const p of ["CLOSE", "SETTLEMENT", "APPEALS", "AWARDS"] as const) expect(defaultJudgeType(p, "PRIMUS")).toBe("SOLUTION");
+    expect(defaultJudgeType("PRESSURE", "PRIMUS")).toBe("CRISIS_1");
+    expect(defaultJudgeType("READING", "PRIMUS")).toBe("PITCH");
+    expect(judgeTypesFor("PRIMUS")).toContain(defaultJudgeType("AWARDS", "PRIMUS"));
   });
 });

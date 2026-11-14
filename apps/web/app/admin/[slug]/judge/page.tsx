@@ -90,7 +90,9 @@ export default async function JudgePage({
   const pausedAt = status.paused ? status.paused_at : null;
   const settings = readSettings();
   const JUDGE_TYPES = judgeTypesFor(event.format);
-  const type = parseJudgeType(query.type) ?? defaultJudgeType(status.phase);
+  // A type this format does not judge (an old link, ?type=FLASH on a PRIMUS night) falls back to the phase's default.
+  const asked = parseJudgeType(query.type);
+  const type = asked && JUDGE_TYPES.includes(asked) ? asked : defaultJudgeType(status.phase, event.format);
   const views = Object.fromEntries(JUDGE_TYPES.map((t) => [t, companyViews(t, data)])) as Record<SubmissionType, CompanyJudgeView[]>;
   const summaries = Object.fromEntries(JUDGE_TYPES.map((t) => [t, summarise(t, views[t])])) as Record<SubmissionType, TypeSummary>;
   const summary = summaries[type];

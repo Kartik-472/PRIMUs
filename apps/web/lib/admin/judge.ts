@@ -136,7 +136,13 @@ export function parseJudgeType(v: string | string[] | undefined): SubmissionType
 }
 
 /** The type the night is working on: pitches until the plans are published, plans until rounds 13–21, then flash. */
-export function defaultJudgeType(phase: PhaseCode): SubmissionType {
+export function defaultJudgeType(phase: PhaseCode, format?: string | null): SubmissionType {
+  if (format === "PRIMUS") {
+    // PRIMUS has no plans or flash answers: after Round 3 (the close, settlement, appeals, awards) the solutions.
+    if (phase === "PRESSURE") return "CRISIS_1";
+    if (phase === "SATURATION" || phaseReached(phase, "CLOSE")) return "SOLUTION";
+    return "PITCH";
+  }
   if (phase === "SATURATION") return "SOLUTION";
   if (phase === "PRESSURE") return "CRISIS_1";
   if (phaseReached(phase, "ROUNDS_13_21")) return "FLASH";
