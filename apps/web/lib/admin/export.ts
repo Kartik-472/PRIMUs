@@ -9,7 +9,7 @@
 
 import { SUBMISSION_TYPES, TRACKS, type SubmissionType, type Track } from "@msim/engine";
 
-export const EXPORT_KINDS = ["ledger", "prices", "scores", "results"] as const;
+export const EXPORT_KINDS = ["ledger", "prices", "scores", "results", "timeline"] as const;
 export type ExportKind = (typeof EXPORT_KINDS)[number];
 
 export function isExportKind(v: unknown): v is ExportKind {
@@ -37,6 +37,11 @@ export const EXPORTS: Record<ExportKind, { title: string; description: string; t
     title: "Final results",
     description: "Every team's final value, start value, return, rank and eligibility. Empty until settlement (05:00).",
     table: "results",
+  },
+  timeline: {
+    title: "Event log",
+    description: "When every phase, crisis step and trading round started and ended, and every pause, start-now and added time, with who did it (the organiser or the clock).",
+    table: "event_log",
   },
 };
 
@@ -345,5 +350,26 @@ export function resultsCsv(rows: readonly ResultExportRow[], lk: Lookups): strin
       { header: "eligible", kind: "bool", get: (r) => r.eligible },
     ],
     sorted,
+  );
+}
+
+export interface TimelineExportRow {
+  at: string;
+  kind: string;
+  what: string;
+  by_organiser: boolean;
+  by_name: string | null;
+}
+
+/** The event log in time order: time, kind (PHASE, CRISIS, TRADING, CONTROL), what happened, and who did it. */
+export function timelineCsv(rows: readonly TimelineExportRow[]): string {
+  return toCsv<TimelineExportRow>(
+    [
+      { header: "time", kind: "time", get: (r) => r.at },
+      { header: "kind", kind: "text", get: (r) => r.kind },
+      { header: "what", kind: "text", get: (r) => r.what },
+      { header: "by", kind: "text", get: (r) => (r.by_organiser ? (r.by_name ?? "Organiser") : "Clock") },
+    ],
+    rows,
   );
 }

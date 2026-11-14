@@ -14,12 +14,14 @@ import {
   pricesCsv,
   resultsCsv,
   scoresCsv,
+  timelineCsv,
   type ExportKind,
   type LedgerExportRow,
   type Lookups,
   type PriceExportRow,
   type ResultExportRow,
   type ScoreExportRow,
+  type TimelineExportRow,
 } from "./export";
 
 async function loadLookups(sb: SupabaseClient, eventId: string): Promise<Lookups> {
@@ -100,6 +102,13 @@ export async function buildExport(sb: SupabaseClient, eventId: string, kind: Exp
           "the results",
         ),
         lk,
+      );
+    case "timeline":
+      return timelineCsv(
+        await fetchPages<TimelineExportRow>(
+          (from, to) => sb.from("event_log").select("at, kind, what, by_organiser, by_name").eq("event_id", eventId).order("id").range(from, to),
+          "the event log",
+        ),
       );
   }
 }

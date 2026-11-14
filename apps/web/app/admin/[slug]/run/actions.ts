@@ -1,0 +1,34 @@
+"use server";
+
+// Running the event by hand: each button is one game function, run as the signed-in organiser.
+
+import type { PhaseCode } from "@msim/engine";
+import { rpc, type ActionResult } from "@/lib/rpc";
+import { phaseName } from "@/lib/admin/run-sheet";
+
+/** End the current phase and start the next one now (its plan is pulled in, so its steps run on time from now). */
+export async function startNextPhase(eventId: string, from: PhaseCode, nextName: string): Promise<ActionResult> {
+  const r = await rpc("start_next_phase_now", { p_event: eventId, p_from: from });
+  if (r.code === "STALE") return { ...r, message: `The event has already left ${phaseName(from)}; nothing changed.` };
+  return r.ok ? { ...r, message: `${nextName} has started.` } : r;
+}
+
+/** Do the step planned at `at` now; every later step moves earlier by the same amount. */
+export async function startStepNow(eventId: string, at: string, label: string): Promise<ActionResult> {
+  const r = await rpc("start_step_now", { p_event: eventId, p_at: at, p_label: label });
+  return r.ok ? { ...r, message: `${label}: done now. Every later step moved ${String(r.data?.moved_minutes ?? 0)} min earlier.` } : r;
+}
+
+/** Add time before the step planned at `at` (and everything after it). */
+export async function delayStep(eventId: string, at: string, minutes: number, label: string): Promise<ActionResult> {
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 120) return { ok: false, code: "BAD_MINUTES", message: "Add 1 to 120 minutes." };
+  const r = await rpc("delay_step", { p_event: eventId, p_at: at, p_minutes: minutes, p_label: label });
+  return r.ok ? { ...r, message: `${label}: ${minutes} min later. Everything after it moved too.` } : r;
+}
+
+export async function setManual(eventId: string, on: boolean): Promise<ActionResult> {
+  const r = await rpc("set_manual_starts", { p_event: eventId, p_on: on });
+  return r.ok
+    ? { ...r, message: on ? "Manual mode on: nothing starts until you press its button." : "Manual mode off: the clock runs the plan by itself." }
+    : r;
+}

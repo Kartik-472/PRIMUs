@@ -249,7 +249,7 @@ describe("fetchPages", () => {
 
 describe("kinds and file names", () => {
   it("knows the four exports", () => {
-    expect(EXPORT_KINDS).toEqual(["ledger", "prices", "scores", "results"]);
+    expect(EXPORT_KINDS).toEqual(["ledger", "prices", "scores", "results", "timeline"]);
     expect(isExportKind("ledger")).toBe(true);
     expect(isExportKind("flags")).toBe(false);
     expect(isExportKind(undefined)).toBe(false);
