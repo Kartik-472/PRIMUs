@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { aiPrice, applyTier, closingPrice, crisisShock, divRoundHalfUp, formatCents, marketClose, sha256Hex, tierBp } from "@msim/engine";
-import { seedE2eEvent, STAFF, type E2eEvent } from "./support/event";
+import type pg from "pg";
+import { e2ePool, seedE2eEvent, STAFF, type E2eEvent } from "./support/event";
 import { drawn, seedOf } from "./support/game";
 import { loginAsStaff } from "./support/login";
 import { LIVE } from "./support/live";
@@ -16,9 +17,19 @@ test.use({ viewport: { width: 1280, height: 720 } });
 
 let ev: E2eEvent;
 let s: Awaited<ReturnType<typeof drawn>>;
+// Shares the prefix U with admin-run: one at a time, each purging the other's event first.
+let lock: pg.PoolClient | undefined;
 test.beforeAll(async () => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
+  lock = await e2ePool().connect();
+  await lock.query("select pg_advisory_lock(hashtext('e2e-common-U'))");
+  await lock.query("select public.purge_event($1)", ["e2e-run"]);
   ev = await seedE2eEvent({ slug: "e2e-display-takeovers", prefix: "U" });
+});
+
+test.afterAll(async () => {
+  await lock?.query("select pg_advisory_unlock(hashtext('e2e-common-U'))");
+  lock?.release();
 });
 
 const groups = (hex: string) => hex.match(/.{16}/g)!;

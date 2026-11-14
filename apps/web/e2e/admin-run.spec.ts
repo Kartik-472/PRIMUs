@@ -1,14 +1,26 @@
 import { expect, test } from "@playwright/test";
 import { sha256Hex } from "@msim/engine";
-import { STAFF, seedE2eEvent, type E2eEvent } from "./support/event";
+import type pg from "pg";
+import { STAFF, e2ePool, seedE2eEvent, type E2eEvent } from "./support/event";
 import { loginAsStaff } from "./support/login";
 
 test.describe.configure({ mode: "serial" });
 
+// Team codes are unique across events and this spec shares the prefix U with display-takeovers: one at a time, each
+// purging the other's event first.
 let ev: E2eEvent;
+let lock: pg.PoolClient | undefined;
 test.beforeAll(async () => {
+  test.setTimeout(300_000);
+  lock = await e2ePool().connect();
+  await lock.query("select pg_advisory_lock(hashtext('e2e-common-U'))");
+  await lock.query("select public.purge_event($1)", ["e2e-display-takeovers"]);
   ev = await seedE2eEvent({ slug: "e2e-run", prefix: "U", format: "PRIMUS" });
   await ev.n.org("set_seed_commitment", ev.n.eventId, sha256Hex(sha256Hex("e2e-run")));
+});
+test.afterAll(async () => {
+  await lock?.query("select pg_advisory_unlock(hashtext('e2e-common-U'))");
+  lock?.release();
 });
 
 test("the Run event page: the plan by round, manual mode, start the next phase, a step now, and the log", async ({ page }) => {
