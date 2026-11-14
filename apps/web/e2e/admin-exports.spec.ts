@@ -214,5 +214,5 @@ test("an unknown export is 404", async ({ page }) => {
   await loginAsStaff(page, ev, STAFF.lead);
   const unknown = await page.request.get(url("flags"));
   expect(unknown.status()).toBe(404);
-  expect(await unknown.json()).toEqual({ error: "No such export: choose ledger, prices, scores, results." });
+  expect(await unknown.json()).toEqual({ error: "No such export: choose ledger, prices, scores, results, timeline." });
 });

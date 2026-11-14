@@ -5,18 +5,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export const SECTIONS = [
-  { path: "", label: "Phase" },
-  { path: "/desk", label: "Desk" },
-  { path: "/lottery", label: "Lottery" },
-  { path: "/rounds", label: "Rounds" },
-  { path: "/judge", label: "Judge" },
-  { path: "/bulletins", label: "Bulletins" },
-  { path: "/content", label: "Content" },
-  { path: "/ledger", label: "Ledger" },
-  { path: "/fairness", label: "Fairness" },
-  { path: "/chats", label: "Chats" },
-  { path: "/exports", label: "Exports" },
-  { path: "/health", label: "Health" },
+  { path: "/run", label: "Run event", hint: "Start and end each round, crisis and step; timers; event log" },
+  { path: "", label: "Overview", hint: "Phase, gates, draft and auto-advance" },
+  { path: "/desk", label: "Registration desk", hint: "Admit teams and walk-ins, hand out login cards" },
+  { path: "/lottery", label: "Squad draw", hint: "The lottery that forms the squads" },
+  { path: "/rounds", label: "Trading", hint: "Trading windows, orders and prices" },
+  { path: "/judge", label: "Judging", hint: "AI scores, review and release" },
+  { path: "/bulletins", label: "News", hint: "Market news for the teams and the big screen" },
+  { path: "/content", label: "Cases & cards", hint: "Problem cards, crises and Round 3 statements" },
+  { path: "/ledger", label: "Money", hint: "Every payment, with corrections" },
+  { path: "/fairness", label: "Fairness", hint: "Flags and appeals" },
+  { path: "/chats", label: "Chats", hint: "Read squad and hire chats" },
+  { path: "/exports", label: "Downloads", hint: "CSV files of the ledger, prices, scores, results and the event log" },
+  { path: "/health", label: "System health", hint: "Connections, errors and the clock" },
 ] as const;
 
 export function AdminNav({ slug, fairness }: { slug: string; fairness: boolean }) {
@@ -43,6 +44,7 @@ export function AdminNav({ slug, fairness }: { slug: string; fairness: boolean }
             key={s.path}
             href={href}
             aria-current={active ? "page" : undefined}
+            title={s.hint}
             className={`whitespace-nowrap border-b-2 px-3 py-2 font-mono text-sm font-medium ${
               active ? "border-phosphor text-phosphor glow" : "border-transparent text-muted hover:text-phosphor"
             } ${s.path === "/fairness" && fairness ? "font-semibold" : ""}`}

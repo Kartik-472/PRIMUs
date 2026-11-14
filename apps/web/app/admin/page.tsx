@@ -36,7 +36,7 @@ export default async function AdminHome() {
           <BentoGrid>
             {events.map((e, i) => (
               <BentoItem key={e.slug} span={i === 0 && !e.is_rehearsal ? 2 : 1} className={e.is_rehearsal ? "" : "bento-item-hot"}>
-                <Link href={`/admin/${e.slug}`} className="flex h-full flex-col justify-between gap-3">
+                <Link href={`/admin/${e.slug}/run`} className="flex h-full flex-col justify-between gap-3">
                   <span>
                     <span className="block font-mono text-xs text-phosphor-mid" aria-hidden>
                       &gt; ./{e.slug}
