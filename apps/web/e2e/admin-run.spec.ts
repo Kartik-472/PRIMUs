@@ -70,4 +70,18 @@ test("the Run event page: the plan by round, manual mode, start the next phase, 
   const text = await csv.text();
   expect(text.split("\r\n")[0]).toBe("time,kind,what,by");
   expect(text).toContain("Check-in started");
+
+  // Every step waits: when the PRD deadline comes due, the clock holds it and the page says it is waiting.
+  await page.getByRole("button", { name: "Make every step wait for me" }).click();
+  await page.getByRole("button", { name: "Click again: every step waits for me" }).click();
+  await expect(page.getByRole("button", { name: "Let steps run on their timers" })).toBeVisible();
+  expect((await ev.n.one("select hold_steps from events where id = $1", [ev.n.eventId])).hold_steps).toBe(true);
+  await ev.n.q("update deadlines set at = now() + interval '20 seconds' where event_id = $1 and code = 'PITCH'", [ev.n.eventId]);
+  await ev.n.ok(ev.n.lead, "tick", ev.n.eventId);
+  await page.reload();
+  await expect(page.getByTestId("run-next")).toHaveText("PRDs and crisis memos due");
+  await expect(page.getByText("Waiting for you", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Do it now" }).click();
+  await page.getByRole("button", { name: "Click again: prds and crisis memos due now" }).click();
+  await expect(page.getByTestId("step-PITCH")).toContainText("Done");
 });

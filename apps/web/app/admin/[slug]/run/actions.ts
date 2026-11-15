@@ -32,3 +32,17 @@ export async function setManual(eventId: string, on: boolean): Promise<ActionRes
     ? { ...r, message: on ? "Manual mode on: nothing starts until you press its button." : "Manual mode off: the clock runs the plan by itself." }
     : r;
 }
+
+/** Every step inside a round waits for the organiser (manual mode only). */
+export async function setHoldSteps(eventId: string, on: boolean): Promise<ActionResult> {
+  const r = await rpc("set_hold_steps", { p_event: eventId, p_on: on });
+  return r.ok
+    ? { ...r, message: on ? "Every step now waits for you: press Do it now when you are ready." : "Steps inside a round run on their timers again." }
+    : r;
+}
+
+/** Open the next trading window now, for its planned length. */
+export async function openRoundNow(eventId: string, n: number): Promise<ActionResult> {
+  const r = await rpc("open_round_now", { p_event: eventId, p_number: n });
+  return r.ok ? { ...r, message: `Trading window ${n} is open.` } : r;
+}
