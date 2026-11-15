@@ -84,4 +84,13 @@ test("the Run event page: the plan by round, manual mode, start the next phase, 
   await page.getByRole("button", { name: "Do it now" }).click();
   await page.getByRole("button", { name: "Click again: prds and crisis memos due now" }).click();
   await expect(page.getByTestId("step-PITCH")).toContainText("Done");
+
+  // Reset the rehearsal: back to Setup, manual mode kept, the same logins.
+  await page.getByRole("button", { name: "Reset demo" }).click();
+  await page.getByRole("button", { name: "Click again: wipe this demo and start over" }).click();
+  await expect(page.getByTestId("run-phase")).toHaveText("Setup");
+  await expect(page.getByRole("button", { name: "Switch to automatic" })).toBeVisible();
+  const fresh = await ev.n.one("select id, current_phase from events where slug = $1", [ev.slug]);
+  expect(fresh.current_phase).toBe("SETUP");
+  expect((await ev.n.one("select count(*)::int as c from squads where event_id = $1", [fresh.id])).c).toBe(0);
 });

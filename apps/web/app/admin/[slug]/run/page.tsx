@@ -11,7 +11,7 @@ import { Countdown } from "@/components/ui/countdown";
 import { RefreshAt } from "@/lib/live/refresh-at";
 import { pauseEvent, resumeEvent } from "../actions";
 import { closeRound } from "../rounds/actions";
-import { delayStep, openRoundNow, setHoldSteps, setManual, startNextPhase, startStepNow } from "./actions";
+import { delayStep, openRoundNow, resetRehearsal, setHoldSteps, setManual, startNextPhase, startStepNow } from "./actions";
 
 export const metadata: Metadata = { title: "Run the event" };
 
@@ -365,6 +365,22 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
           ))}
         </Table>
       </Panel>
+
+      {/* ── Reset (rehearsals only) ── */}
+      {organiser && event.is_rehearsal ? (
+        <Panel title="Reset this demo">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="max-w-3xl text-sm text-paper">
+              <Badge tone="amber">Rehearsal</Badge> Puts this demo back to the start: Setup, no draw, no submissions, trades, chats or scores. The same
+              teams, logins, passwords and cards stay, and the plan starts again 5 minutes from now. Manual mode stays as it is. The live event can never
+              be reset.
+            </p>
+            <ActionButton action={resetRehearsal.bind(null, event.id, slug)} confirm="Click again: wipe this demo and start over">
+              Reset demo
+            </ActionButton>
+          </div>
+        </Panel>
+      ) : null}
     </div>
   );
 }
