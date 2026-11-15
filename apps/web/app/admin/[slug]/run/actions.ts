@@ -3,6 +3,7 @@
 // Running the event by hand: each button is one game function, run as the signed-in organiser.
 
 import type { PhaseCode } from "@msim/engine";
+import { revalidatePath } from "next/cache";
 import { rpc, type ActionResult } from "@/lib/rpc";
 import { phaseName } from "@/lib/admin/run-sheet";
 
@@ -45,4 +46,11 @@ export async function setHoldSteps(eventId: string, on: boolean): Promise<Action
 export async function openRoundNow(eventId: string, n: number): Promise<ActionResult> {
   const r = await rpc("open_round_now", { p_event: eventId, p_number: n });
   return r.ok ? { ...r, message: `Trading window ${n} is open.` } : r;
+}
+
+/** Put a rehearsal back to a fresh Setup (same teams, logins and cards). Never the live event. */
+export async function resetRehearsal(eventId: string, slug: string): Promise<ActionResult> {
+  const r = await rpc("reset_rehearsal", { p_event: eventId });
+  if (r.ok) revalidatePath(`/admin/${slug}`, "layout");
+  return r.ok ? { ...r, message: "The demo is back at Setup. Teams sign in with the same codes and passwords." } : r;
 }

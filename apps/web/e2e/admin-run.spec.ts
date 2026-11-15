@@ -55,6 +55,9 @@ test("the Run event page: the plan by round, manual mode, start the next phase, 
   await page.getByRole("button", { name: "+5 min" }).first().click();
   await page.getByRole("button", { name: "Click again: +5 min" }).click();
   await expect.poll(async () => new Date((await ev.n.one("select at from deadlines where event_id = $1 and code = 'PITCH'", [ev.n.eventId])).at).getTime() - pitchBefore).toBe(5 * 60_000);
+  // "Do it now" carries the step's time as the page last showed it: load the moved plan before pressing it.
+  await page.reload();
+  await expect(page.getByTestId("run-next")).toHaveText("Problem cards picked");
   await page.getByRole("button", { name: "Do it now" }).click();
   await page.getByRole("button", { name: "Click again: problem cards picked now" }).click();
   await expect(page.getByTestId("run-next")).toHaveText("PRDs and crisis memos due");
@@ -84,4 +87,13 @@ test("the Run event page: the plan by round, manual mode, start the next phase, 
   await page.getByRole("button", { name: "Do it now" }).click();
   await page.getByRole("button", { name: "Click again: prds and crisis memos due now" }).click();
   await expect(page.getByTestId("step-PITCH")).toContainText("Done");
+
+  // Reset the rehearsal: back to Setup, manual mode kept, the same logins.
+  await page.getByRole("button", { name: "Reset demo" }).click();
+  await page.getByRole("button", { name: "Click again: wipe this demo and start over" }).click();
+  await expect(page.getByTestId("run-phase")).toHaveText("Setup");
+  await expect(page.getByRole("button", { name: "Switch to automatic" })).toBeVisible();
+  const fresh = await ev.n.one("select id, current_phase from events where slug = $1", [ev.slug]);
+  expect(fresh.current_phase).toBe("SETUP");
+  expect((await ev.n.one("select count(*)::int as c from squads where event_id = $1", [fresh.id])).c).toBe(0);
 });

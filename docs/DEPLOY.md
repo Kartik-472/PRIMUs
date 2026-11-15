@@ -42,6 +42,10 @@ bypasses RLS, and `CARD_SECRET` can derive all team passwords. Restrict laptop a
    ```
    Review the CLI's proposed migration list before accepting. If a migration fails, diagnose it rather than marking
    it applied manually. Never run a local reset command against production.
+   **Check the version:** after deploying the app, open `https://<app>/api/health`. It must say `"schema": "ok"`.
+   `"behind"` means a migration this build needs was not applied (the control panel shows a red warning too); apply it
+   before the event. From migration 50 on, every new migration redefines `public.schema_version()` with its own
+   version, and `apps/web/lib/schema.ts` names the version the app expects (a unit test keeps them in step).
    **Judge upgrade order:** stop/drain existing judge consoles and CLI workers, apply migrations through
    `20261017000022_judge_lifetime_claims.sql`, then deploy/start the updated app and CLI. Migration 22 adds lifetime
    `claim_token` ownership independently of resettable retry `attempts`; the report field `attempt` now carries
@@ -214,6 +218,35 @@ Team 10,000 and 2,500 (channel joins per second match the messages). It counts a
 to, or sent from a client", as above. A 600-screen night therefore needs **Pro with the spend cap off, or Team**:
 on Pro with the cap on, a hundred screens cannot connect. Each team screen joins three channels (the event, its team
 and its squad chat), so a venue-wide reconnect of 600 screens is about 1,800 joins.
+
+**The app server and the database: everyone refreshing at once.** The realtime test above does not load the pages
+themselves. `pnpm app-load-test` does: it signs in every team of a rehearsal event, opens 4 sessions per team
+(600 screens) and loads the real team pages through the deployed app, as phones do. Two modes:
+
+```bash
+# The night's peak: a round clears and all 600 screens re-read their page within 1.2 s.
+pnpm app-load-test --base https://<staging app> --slug <rehearsal slug> --burst 1.2
+# Steady browsing: 600 screens, one page every ~30 s each, for 2 minutes.
+pnpm app-load-test --base https://<staging app> --slug <rehearsal slug> --think 30 --duration 120
+```
+
+It needs the event's env (`SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CARD_SECRET`,
+`TEAM_EMAIL_DOMAIN`), runs only against a rehearsal event, writes `out/app-load-test-*.json` and fails above a 2 s p95
+or 1% errors. Run it from a laptop on a good connection against **staging with the production plan and compute**,
+never against the live event.
+
+What the local measurements (November 2026, one 4-core machine running app, database and load together) showed:
+
+- A team page makes 10 to 28 database calls and returns 130 to 320 KB; one Node process serves about 14 pages a
+  second. On Vercel each request runs in its own function, so the app scales out; the shared part is the database.
+- The burst first failed with 13.5% errors. The cause was row level security evaluating `app.my_team_id()` and
+  friends once per row; migration 51 makes them once per query (offers: 10.4 ms to 1.9 ms) with no change to what
+  anyone may read, and the burst then ran with 0 errors. Deadline refreshes are also spread over 1.5 s per screen now.
+- Postgres still spends about 45 ms per page, about 28 CPU-seconds for a 600-screen burst. Size the Supabase compute
+  for that: with 4 dedicated cores the database clears such a burst in roughly 7 to 10 s, with 2 shared cores it
+  takes several times longer. Choose compute with at least 4 dedicated cores for the night (check the current
+  [compute add-ons](https://supabase.com/docs/guides/platform/compute-add-ons)), then confirm with the burst test on
+  staging: **every screen served within 10 s and 0 errors** is the bar to meet before the event.
 
 Then unset `JUDGE_FAKE`, redeploy and run a real calibration batch under `/admin/<slug>/judge/calibration`.
 Use two organiser consoles and check every median against the expected band; record model, prompt hashes, timing,
