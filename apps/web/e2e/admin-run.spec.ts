@@ -55,6 +55,9 @@ test("the Run event page: the plan by round, manual mode, start the next phase, 
   await page.getByRole("button", { name: "+5 min" }).first().click();
   await page.getByRole("button", { name: "Click again: +5 min" }).click();
   await expect.poll(async () => new Date((await ev.n.one("select at from deadlines where event_id = $1 and code = 'PITCH'", [ev.n.eventId])).at).getTime() - pitchBefore).toBe(5 * 60_000);
+  // "Do it now" carries the step's time as the page last showed it: load the moved plan before pressing it.
+  await page.reload();
+  await expect(page.getByTestId("run-next")).toHaveText("Problem cards picked");
   await page.getByRole("button", { name: "Do it now" }).click();
   await page.getByRole("button", { name: "Click again: problem cards picked now" }).click();
   await expect(page.getByTestId("run-next")).toHaveText("PRDs and crisis memos due");
