@@ -11,7 +11,7 @@ import { Countdown } from "@/components/ui/countdown";
 import { RefreshAt } from "@/lib/live/refresh-at";
 import { pauseEvent, resumeEvent } from "../actions";
 import { closeRound } from "../rounds/actions";
-import { delayStep, setManual, startNextPhase, startStepNow } from "./actions";
+import { delayStep, openRoundNow, setHoldSteps, setManual, startNextPhase, startStepNow } from "./actions";
 
 export const metadata: Metadata = { title: "Run the event" };
 
@@ -48,7 +48,7 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
   const organiser = viewer!.role === "ORGANISER";
   const sb = await supabaseServer();
   const [ev, phases, deadlines, subrounds, rounds, log] = await Promise.all([
-    sb.from("events").select("manual_starts").eq("id", event.id).maybeSingle<{ manual_starts: boolean }>(),
+    sb.from("events").select("manual_starts, hold_steps").eq("id", event.id).maybeSingle<{ manual_starts: boolean; hold_steps: boolean }>(),
     sb.from("phases").select("code, seq, starts_at, ends_at, started_at, ended_at").eq("event_id", event.id).order("seq"),
     sb.from("deadlines").select("code, at").eq("event_id", event.id).order("at"),
     sb.from("subrounds").select("k, revealed_at, hiring_closed_at, due_closed_at, rated_at").eq("event_id", event.id).order("k"),
@@ -56,6 +56,7 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
     sb.from("event_log").select("id, at, kind, what, by_organiser, by_name").eq("event_id", event.id).order("id", { ascending: false }).limit(200),
   ]);
   const manual = ev.data?.manual_starts ?? false;
+  const holdSteps = manual && (ev.data?.hold_steps ?? false);
   const now = new Date(status.server_time).getTime();
   const { stages, next } = buildRunSheet({
     now,
@@ -71,8 +72,26 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
   const nextPhase = status.next_phase;
   const blocked = status.gate ?? (status.paused ? "Resume the event first." : null);
   const phaseEnd = (phases.data ?? []).find((p) => p.code === status.phase)?.ends_at ?? null;
-  // A held crisis: manual mode, Round 2, and the next step is a crisis that has not been started.
-  const holding = manual && status.phase === "PRESSURE" && next?.key.startsWith("REVEAL_");
+  // A held step: in manual mode a Round 2 crisis that has not been started, or, when every step waits, any next step
+  // whose time has come (the clock keeps it two minutes away until the organiser starts it).
+  const holding =
+    !!next && ((manual && status.phase === "PRESSURE" && next.key.startsWith("REVEAL_")) || (holdSteps && new Date(next.at).getTime() - now <= 150_000));
+  const nextRoundHere = nextRound && nextRound.phase === status.phase ? nextRound : null;
+  const tradingButton =
+    organiser && open ? (
+      <ActionButton action={closeRound.bind(null, event.id, open.number)} confirm={`Click again to close window ${open.number} now`}>
+        Close window {open.number} now
+      </ActionButton>
+    ) : organiser && nextRoundHere ? (
+      <ActionButton
+        action={openRoundNow.bind(null, event.id, nextRoundHere.number)}
+        confirm={`Click again to open window ${nextRoundHere.number} now`}
+        disabled={status.paused}
+        title="Opens the next trading window now, for its planned length"
+      >
+        Open window {nextRoundHere.number} now
+      </ActionButton>
+    ) : null;
 
   const stepButtons = (s: Step) =>
     organiser && s.movable ? (
@@ -173,6 +192,7 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
               </ActionButton>
             ) : null}
             {next && next.movable ? stepButtons(next) : null}
+            {tradingButton}
             {status.paused ? (
               <ActionButton action={resumeEvent.bind(null, event.id)} confirm="Click again to resume" variant="primary">
                 Resume
@@ -200,8 +220,18 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
             {manual ? (
               <>
                 <Badge tone="green">Manual</Badge> Nothing moves to the next phase by itself, and in Round 2 the clock waits before each crisis until you
-                press <strong>Start crisis</strong>. Steps inside a crisis (hiring, plans due, ratings) still run on their timers; use{" "}
-                <strong>Do it now</strong> or <strong>+5 min</strong> to change them.
+                press <strong>Start crisis</strong>.{" "}
+                {holdSteps ? (
+                  <>
+                    <Badge tone="green">Every step waits</Badge> Every step inside a round (hiring, plans due, ratings, the draft, IPO bids) also waits:
+                    when its time comes, the clock holds until you press <strong>Do it now</strong>. An open trading window stays open meanwhile.
+                  </>
+                ) : (
+                  <>
+                    Steps inside a round (hiring, plans due, ratings) still run on their timers; use <strong>Do it now</strong> or{" "}
+                    <strong>+5 min</strong> to change them, or make every step wait for you.
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -217,6 +247,15 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
               variant={manual ? "secondary" : "primary"}
             >
               {manual ? "Switch to automatic" : "Switch to manual"}
+            </ActionButton>
+          ) : null}
+          {organiser && manual ? (
+            <ActionButton
+              action={setHoldSteps.bind(null, event.id, !holdSteps)}
+              confirm={holdSteps ? "Click again: steps run on their timers" : "Click again: every step waits for me"}
+              variant={holdSteps ? "secondary" : "primary"}
+            >
+              {holdSteps ? "Let steps run on their timers" : "Make every step wait for me"}
             </ActionButton>
           ) : null}
         </div>
@@ -256,7 +295,9 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
                       <div className="flex flex-wrap items-center gap-3 text-sm">
                         <span className="font-mono tabular-nums text-paper">
                           {s.doneAt ? clock(s.doneAt) : clock(s.at)}
-                          {s.state === "NEXT" && !(holding && s.key.startsWith("REVEAL_")) ? (
+                          {s.state === "NEXT" && holding ? (
+                            <span className="ml-2 text-warn">waiting for you</span>
+                          ) : s.state === "NEXT" ? (
                             <span className="ml-2 text-warn">
                               in <Countdown to={s.at} passed="now" />
                             </span>
@@ -277,16 +318,10 @@ export default async function RunPage({ params }: PageProps<"/admin/[slug]/run">
       {roundRows.length ? (
         <Panel title="Trading windows">
           <p className="mb-3 text-sm text-paper">
-            Short market windows that open and close by themselves inside Rounds 2 and 3 (prices clear at the end of each). They move with the steps above
-            when you start something early or add time.
+            Short market windows inside Rounds 2 and 3 (prices clear at the end of each). They open and close on their times and move with the steps
+            above when you start something early, add time or the clock holds. You can close the open window now, or open the next one now.
           </p>
-          {organiser && open ? (
-            <div className="mb-3">
-              <ActionButton action={closeRound.bind(null, event.id, open.number)} confirm={`Click again to close window ${open.number} now`}>
-                Close window {open.number} now
-              </ActionButton>
-            </div>
-          ) : null}
+          {tradingButton ? <div className="mb-3">{tradingButton}</div> : null}
           <details>
             <summary className="cursor-pointer text-sm text-phosphor">Show all {roundRows.length} windows</summary>
             <Table head={["Window", "Round", "Opens", "Closes", "Status"]} label="Trading windows" className="mt-2">
