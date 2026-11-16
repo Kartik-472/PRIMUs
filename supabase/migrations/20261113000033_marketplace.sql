@@ -205,6 +205,9 @@ begin
   if exists (select 1 from public.offers where company_id = v_company.id and firm_team_id = p_firm and k = v_k and status = 'OPEN') then
     return app.fail('OFFER_OPEN', 'You already have an open offer with that firm.');
   end if;
+  if (select count(*) from public.offers where company_id = v_company.id and k = v_k and status = 'OPEN') >= 3 then
+    return app.fail('TOO_MANY_OFFERS', 'You can have at most 3 open offers at once.');
+  end if;
   v_problem := app.offer_problem(v_company, v_k, coalesce(p_cash, 0), coalesce(p_shares, 0));
   if v_problem is not null then
     return app.fail('BAD_TERMS', v_problem);

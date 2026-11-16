@@ -32,6 +32,7 @@ export const RULES = {
   FEE_MAX: 3_500_000, // $35,000
   FEE_MAX_SHARES: 3_000,
   FEE_DEFAULT: 2_250_000, // $22,500 cash
+  MAX_OPEN_OFFERS: 3,
 
   DEAL_MIN: 4_000_000, // $40,000
   DEAL_MAX: 8_000_000, // $80,000
